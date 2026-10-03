@@ -90,7 +90,12 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .trash-bar{margin:0 16px 10px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
 
 /* 편집기 */
-.editor{background:var(--surface);display:flex;flex-direction:column;min-height:0}
+.editor{background:var(--surface);display:flex;flex-direction:column;min-height:0;position:relative}
+.fs-pop{position:absolute;top:58px;right:12px;z-index:5;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 8px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.fs-pop button{min-width:44px;height:36px;border-radius:8px;font-weight:600;background:var(--bg)}
+.fs-pop button:nth-of-type(2){font-size:19px}
+.fs-pop span{min-width:52px;text-align:center;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+#fsBtn{font-weight:700;font-size:16px}
 .ed-bar{display:flex;align-items:center;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line)}
 .ed-bar .back{display:none}
 .ed-bar select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:5px 8px;font-size:14px;max-width:180px}
@@ -101,7 +106,7 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .ed-date{font-size:13px;color:var(--faint);text-align:center;padding:14px 0 0}
 mark{background:var(--hl);color:inherit;border-radius:2px}
 .ed-wrap{flex:1;position:relative;width:100%;max-width:760px;margin:0 auto;min-height:0}
-textarea.ed,.hl{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;box-sizing:border-box;padding:14px 28px 40px;font-family:var(--font);font-size:17px;line-height:1.75;letter-spacing:normal;white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;scrollbar-gutter:stable}
+textarea.ed,.hl{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;box-sizing:border-box;padding:14px 28px 40px;font-family:var(--font);font-size:var(--ed-size,17px);line-height:1.75;letter-spacing:normal;white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;scrollbar-gutter:stable}
 textarea.ed{resize:none;background:transparent;outline:none;overflow-y:auto;z-index:1}
 .hl{color:transparent;pointer-events:none;overflow:hidden}
 .hl mark.cur{background:var(--hl-cur)}
@@ -149,7 +154,7 @@ dialog input[type=text],dialog input[type=email],dialog input[type=password]{wid
   body.editing .editor{transform:none}
   .ed-bar .back{display:inline-grid}
   .ed-bar{gap:2px;padding:8px 8px}
-  .ed-bar select{max-width:110px}
+  .ed-bar select{max-width:96px}
   .ed-bar .icon-btn{width:30px}
   .hits:not(.hidden) ~ .saved{display:none}
   textarea.ed,.hl{padding:12px 20px 40px}
@@ -209,11 +214,15 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
       <span class="spacer"></span>
       <span class="hits hidden" id="hits"><button class="icon-btn" id="hitPrev" aria-label="이전 검색어">▲</button><span id="hitCount"></span><button class="icon-btn" id="hitNext" aria-label="다음 검색어">▼</button></span>
       <span class="saved" id="saved"></span>
+      <button class="icon-btn hidden" id="fsBtn" aria-label="글씨 크기" title="글씨 크기">가</button>
       <button class="icon-btn" id="lockBtn" aria-label="잠금" title="이 메모 잠그기">🔒</button>
       <button class="icon-btn" id="pinBtn" aria-label="고정" title="맨 위에 고정">📌</button>
       <button class="icon-btn" id="delBtn" aria-label="휴지통으로" title="휴지통으로">🗑</button>
       <button class="btn hidden" id="restoreBtn">복원</button>
       <button class="btn danger hidden" id="purgeBtn">영구 삭제</button>
+    </div>
+    <div class="fs-pop hidden" id="fsPop" role="group" aria-label="글씨 크기">
+      <button id="fsDown" aria-label="글씨 작게">가−</button><span id="fsVal"></span><button id="fsUp" aria-label="글씨 크게">가+</button>
     </div>
     <div class="ed-body" id="edBody">
       <div class="ed-date" id="edDate"></div>
@@ -691,12 +700,13 @@ function renderEditor(jump) {
   $('edBody').classList.toggle('hidden', !has || sealed);
   $('edLocked').classList.toggle('hidden', !sealed);
   $('edEmpty').classList.toggle('hidden', !!has);
-  ['folderSel', 'lockBtn', 'pinBtn', 'delBtn', 'restoreBtn', 'purgeBtn', 'saved', 'hits'].forEach(id => $(id).classList.add('hidden'));
+  ['folderSel', 'lockBtn', 'pinBtn', 'delBtn', 'restoreBtn', 'purgeBtn', 'saved', 'hits', 'fsBtn'].forEach(id => $(id).classList.add('hidden'));
   if (!has) return;
   if (sealed) { if (!n.trashed) $('delBtn').classList.remove('hidden'); else $('purgeBtn').classList.remove('hidden'); return; }
   const ed = $('ed'), t = textOf(n);
   if (ed.value !== t) ed.value = t;
   ed.readOnly = !!n.trashed;
+  $('fsBtn').classList.remove('hidden');
   requestAnimationFrame(() => renderHL(jump));
   $('edDate').textContent = fmtFull(n.updatedAt) + (n.locked ? ' · 🔒 암호화됨' : '');
   if (n.trashed) { $('restoreBtn').classList.remove('hidden'); $('purgeBtn').classList.remove('hidden'); return; }
@@ -710,6 +720,23 @@ function renderEditor(jump) {
 }
 
 function renderAll() { renderNav(); renderList(); renderEditor(); }
+
+/* ---------- 글씨 크기 (기기마다 따로 기억) ---------- */
+const FS_KEY = 'hangyeol.fontSize', FS_MIN = 13, FS_MAX = 32;
+let fontSize = 17;
+try { fontSize = Math.min(FS_MAX, Math.max(FS_MIN, parseInt(localStorage.getItem(FS_KEY), 10) || 17)); } catch (e) {}
+function applyFont() {
+  document.documentElement.style.setProperty('--ed-size', fontSize + 'px');
+  $('fsVal').textContent = fontSize + 'px';
+  $('fsDown').disabled = fontSize <= FS_MIN; $('fsUp').disabled = fontSize >= FS_MAX;
+  try { localStorage.setItem(FS_KEY, fontSize); } catch (e) {}
+  requestAnimationFrame(() => renderHL(false));
+}
+$('fsBtn').onclick = e => { e.stopPropagation(); $('fsPop').classList.toggle('hidden'); };
+$('fsDown').onclick = e => { e.stopPropagation(); fontSize = Math.max(FS_MIN, fontSize - 1); applyFont(); };
+$('fsUp').onclick = e => { e.stopPropagation(); fontSize = Math.min(FS_MAX, fontSize + 1); applyFont(); };
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#fsPop, #fsBtn')) $('fsPop').classList.add('hidden'); });
+applyFont();
 
 /* ---------- 동작 ---------- */
 const isPhone = () => matchMedia('(max-width:719px)').matches;
