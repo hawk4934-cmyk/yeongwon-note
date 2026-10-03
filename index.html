@@ -516,7 +516,8 @@ function titleOf(n) {
   return l ? l.trim().slice(0, 60) : '새 메모';
 }
 /* ---------- 검색과 형광펜 ---------- */
-const searchTerms = () => ui.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+// 검색어 전체를 한 덩어리로, 띄어쓰기까지 정확히 일치하는 부분만 찾음 (영문 대소문자는 구분 안 함)
+const searchTerms = () => { const q = ui.q.trim().toLowerCase(); return q ? [q] : []; };
 function termRegex() {
   const t = searchTerms();
   if (!t.length) return null;
