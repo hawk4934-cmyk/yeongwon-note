@@ -16,13 +16,13 @@
 <style>
 :root{
   --bg:#F3F5F8; --side:#E8ECF1; --surface:#FFFFFF; --ink:#1F2633; --muted:#667080; --faint:#98A0AC;
-  --line:#DCE1E8; --accent:#2F5D8A; --accent-soft:#E1EAF4; --danger:#C2463A;
+  --line:#DCE1E8; --accent:#2F5D8A; --accent-soft:#E1EAF4; --danger:#C2463A; --hl:#FFF06A; --hl-cur:#FFB547;
   --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#171B22; --side:#1C2129; --surface:#20262F; --ink:#E6E9EE; --muted:#9AA3B0; --faint:#69727F;
-    --line:#2E3540; --accent:#86AEDB; --accent-soft:#25324A; --danger:#E0786C;
+    --line:#2E3540; --accent:#86AEDB; --accent-soft:#25324A; --danger:#E0786C; --hl:rgba(255,226,60,.38); --hl-cur:rgba(255,150,40,.65);
   }
 }
 *{box-sizing:border-box}
@@ -97,7 +97,14 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .icon-btn.on{color:var(--accent)}
 .ed-body{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .ed-date{font-size:13px;color:var(--faint);text-align:center;padding:14px 0 0}
-textarea.ed{flex:1;width:100%;max-width:760px;margin:0 auto;border:0;resize:none;background:transparent;padding:14px 28px 40px;font-size:17px;line-height:1.75;outline:none}
+mark{background:var(--hl);color:inherit;border-radius:2px}
+.ed-wrap{flex:1;position:relative;width:100%;max-width:760px;margin:0 auto;min-height:0}
+textarea.ed,.hl{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;box-sizing:border-box;padding:14px 28px 40px;font-family:var(--font);font-size:17px;line-height:1.75;letter-spacing:normal;white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;scrollbar-gutter:stable}
+textarea.ed{resize:none;background:transparent;outline:none;overflow-y:auto;z-index:1}
+.hl{color:transparent;pointer-events:none;overflow:hidden}
+.hl mark.cur{background:var(--hl-cur)}
+.hits{display:flex;align-items:center;gap:2px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.hits .icon-btn{width:28px;height:28px;font-size:13px}
 textarea.ed[readonly]{color:var(--muted)}
 .ed-empty{flex:1;display:grid;place-items:center;color:var(--faint);font-size:15px}
 .btn{padding:7px 14px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--surface)}
@@ -136,7 +143,7 @@ dialog input[type=text],dialog input[type=email],dialog input[type=password]{wid
   .editor{position:fixed;inset:0;z-index:15;transform:translateX(100%);transition:transform .22s ease;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
   body.editing .editor{transform:none}
   .ed-bar .back{display:inline-grid}
-  textarea.ed{padding:12px 20px 40px}
+  textarea.ed,.hl{padding:12px 20px 40px}
   .list{border-right:0}
 }
 @media (prefers-reduced-motion:reduce){.side,.editor{transition:none}}
@@ -191,6 +198,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
       <button class="icon-btn back" id="backBtn" aria-label="목록으로">‹</button>
       <select id="folderSel" aria-label="폴더"></select>
       <span class="spacer"></span>
+      <span class="hits hidden" id="hits"><button class="icon-btn" id="hitPrev" aria-label="이전 검색어">▲</button><span id="hitCount"></span><button class="icon-btn" id="hitNext" aria-label="다음 검색어">▼</button></span>
       <span class="saved" id="saved"></span>
       <button class="icon-btn" id="lockBtn" aria-label="잠금" title="이 메모 잠그기">🔒</button>
       <button class="icon-btn" id="pinBtn" aria-label="고정" title="맨 위에 고정">📌</button>
@@ -200,7 +208,10 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
     </div>
     <div class="ed-body" id="edBody">
       <div class="ed-date" id="edDate"></div>
-      <textarea class="ed" id="ed" placeholder="첫 줄이 제목이 됩니다" spellcheck="false"></textarea>
+      <div class="ed-wrap">
+        <div class="hl" id="hl" aria-hidden="true"></div>
+        <textarea class="ed" id="ed" placeholder="첫 줄이 제목이 됩니다" spellcheck="false"></textarea>
+      </div>
     </div>
     <div class="ed-locked hidden" id="edLocked">
       <div class="big">🔒</div>
@@ -504,6 +515,31 @@ function titleOf(n) {
   const l = t.split('\n').find(s => s.trim());
   return l ? l.trim().slice(0, 60) : '새 메모';
 }
+/* ---------- 검색과 형광펜 ---------- */
+const searchTerms = () => ui.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+function termRegex() {
+  const t = searchTerms();
+  if (!t.length) return null;
+  return new RegExp(t.slice().sort((a, b) => b.length - a.length).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi');
+}
+function hlHtml(text, re) {
+  if (!re) return esc(text);
+  let out = '', last = 0;
+  text.replace(re, (m, off) => { out += esc(text.slice(last, off)) + '<mark>' + esc(m) + '</mark>'; last = off + m.length; return m; });
+  return out + esc(text.slice(last));
+}
+function snippetOf(n, re) { // 검색어가 있는 부분을 미리보기로
+  const t = textOf(n);
+  if (t === null || !re) return null;
+  const lines = t.split('\n'), first = lines.findIndex(s => s.trim());
+  const rest = lines.slice(first + 1).filter(s => s.trim()).join(' ');
+  re.lastIndex = 0;
+  const m = re.exec(rest);
+  if (!m) return null;
+  const from = Math.max(0, m.index - 18);
+  return (from > 0 ? '…' : '') + rest.slice(from, from + 90);
+}
+
 function previewOf(n) {
   const t = textOf(n);
   if (t === null) return '잠금 해제 후 볼 수 있습니다';
@@ -525,14 +561,20 @@ function purgeOldTrash() {
 /* ---------- 화면 그리기 ---------- */
 function viewNotes() {
   let list = liveNotes();
+  const terms = searchTerms();
+  if (terms.length) { // 검색할 때는 폴더와 상관없이 전체에서 찾음 (휴지통에서는 휴지통 안에서)
+    list = list.filter(n => !!n.trashed === (ui.view === 'trash')).filter(n => {
+      const t = textOf(n); if (t === null) return false;
+      const low = t.toLowerCase(); return terms.every(w => low.includes(w));
+    });
+    return list.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
   if (ui.view === 'trash') list = list.filter(n => n.trashed);
   else {
     list = list.filter(n => !n.trashed);
     if (ui.view === 'unfiled') list = list.filter(n => !n.folderId || !data.folders[n.folderId] || data.folders[n.folderId].deleted);
     else if (ui.view !== 'all') list = list.filter(n => n.folderId === ui.view);
   }
-  const q = ui.q.trim().toLowerCase();
-  if (q) list = list.filter(n => { const t = textOf(n); return t !== null && t.toLowerCase().includes(q); });
   return list.sort((a, b) => ui.view === 'trash' ? b.trashedAt - a.trashedAt : (!!b.pinned - !!a.pinned) || (b.updatedAt - a.updatedAt));
 }
 function viewName() {
@@ -573,6 +615,8 @@ function renderList() {
     return;
   }
   const list = viewNotes();
+  const re = termRegex();
+  if (re) $('listTitle').textContent = `검색 결과 ${list.length}개` + (ui.view === 'trash' ? ' (휴지통)' : '');
   if (!list.length) {
     $('notes').innerHTML = `<div class="empty">${ui.q ? '검색 결과가 없습니다' : ui.view === 'trash' ? '휴지통이 비어 있습니다' : '+ 버튼으로 첫 메모를 써 보세요'}</div>`;
     return;
@@ -582,25 +626,57 @@ function renderList() {
     const tab = f && !f.deleted ? f.color : 'transparent';
     const sealed = textOf(n) === null;
     return `<button class="note-item ${n.id === ui.noteId ? 'on' : ''} ${sealed ? 'sealed' : ''}" data-id="${n.id}" style="--tab:${tab}">
-      <div class="note-title">${n.pinned && !n.trashed ? '<span class="pin">●</span>' : ''}${n.locked ? '<span class="lockmark">🔒</span>' : ''}${esc(titleOf(n))}</div>
-      <div class="note-meta"><time>${fmtDate(ui.view === 'trash' ? n.trashedAt : n.updatedAt)}</time><span>${esc(previewOf(n))}</span></div>
+      <div class="note-title">${n.pinned && !n.trashed ? '<span class="pin">●</span>' : ''}${n.locked ? '<span class="lockmark">🔒</span>' : ''}${hlHtml(titleOf(n), sealed ? null : re)}</div>
+      <div class="note-meta"><time>${fmtDate(ui.view === 'trash' ? n.trashedAt : n.updatedAt)}</time><span>${(() => { const sn = snippetOf(n, re); return sn ? hlHtml(sn, re) : esc(previewOf(n)); })()}</span></div>
     </button>`;
   }).join('');
 }
 
-function renderEditor() {
+let hitIdx = 0;
+function renderHL(jump) {
+  const n = ui.noteId && data.notes[ui.noteId], ed = $('ed'), hl = $('hl');
+  const re = n && textOf(n) !== null ? termRegex() : null;
+  if (!re) { hl.innerHTML = ''; $('hits').classList.add('hidden'); return; }
+  hl.innerHTML = hlHtml(ed.value, re) + '\n ';
+  const marks = hl.querySelectorAll('mark');
+  $('hits').classList.toggle('hidden', !marks.length);
+  if (!marks.length) return;
+  if (jump) hitIdx = 0;
+  hitIdx = Math.min(hitIdx, marks.length - 1);
+  marks.forEach((m, i) => m.classList.toggle('cur', i === hitIdx));
+  $('hitCount').textContent = `${hitIdx + 1}/${marks.length}`;
+  if (jump) {
+    ed.scrollTop = Math.max(0, marks[hitIdx].offsetTop - ed.clientHeight / 3);
+  }
+  hl.scrollTop = ed.scrollTop;
+}
+function stepHit(d) {
+  const c = $('hl').querySelectorAll('mark').length; if (!c) return;
+  hitIdx = (hitIdx + d + c) % c;
+  const keep = hitIdx; renderHL(false); hitIdx = keep;
+  const m = $('hl').querySelectorAll('mark')[hitIdx];
+  $('ed').scrollTop = Math.max(0, m.offsetTop - $('ed').clientHeight / 3);
+  $('hl').scrollTop = $('ed').scrollTop;
+}
+$('hitPrev').onclick = () => stepHit(-1);
+$('hitNext').onclick = () => stepHit(1);
+$('ed').addEventListener('scroll', () => { $('hl').scrollTop = $('ed').scrollTop; });
+window.addEventListener('resize', () => renderHL(false));
+
+function renderEditor(jump) {
   const n = ui.noteId && data.notes[ui.noteId];
   const has = n && !n.deleted;
   const sealed = has && textOf(n) === null;
   $('edBody').classList.toggle('hidden', !has || sealed);
   $('edLocked').classList.toggle('hidden', !sealed);
   $('edEmpty').classList.toggle('hidden', !!has);
-  ['folderSel', 'lockBtn', 'pinBtn', 'delBtn', 'restoreBtn', 'purgeBtn', 'saved'].forEach(id => $(id).classList.add('hidden'));
+  ['folderSel', 'lockBtn', 'pinBtn', 'delBtn', 'restoreBtn', 'purgeBtn', 'saved', 'hits'].forEach(id => $(id).classList.add('hidden'));
   if (!has) return;
   if (sealed) { if (!n.trashed) $('delBtn').classList.remove('hidden'); else $('purgeBtn').classList.remove('hidden'); return; }
   const ed = $('ed'), t = textOf(n);
   if (ed.value !== t) ed.value = t;
   ed.readOnly = !!n.trashed;
+  requestAnimationFrame(() => renderHL(jump));
   $('edDate').textContent = fmtFull(n.updatedAt) + (n.locked ? ' · 🔒 암호화됨' : '');
   if (n.trashed) { $('restoreBtn').classList.remove('hidden'); $('purgeBtn').classList.remove('hidden'); return; }
   const sel = $('folderSel');
@@ -622,7 +698,7 @@ function openNote(id) {
   const prev = data.notes[ui.noteId];
   if (prev && prev.id !== id && !prev.trashed && !prev.deleted && isEmpty(prev)) discard(prev);
   ui.noteId = id;
-  renderList(); renderEditor();
+  renderList(); renderEditor(true);
   if (isPhone() && !document.body.classList.contains('editing')) {
     document.body.classList.add('editing');
     history.pushState({ editing: true }, '');
@@ -658,6 +734,7 @@ $('ed').addEventListener('input', () => {
     vault.plain[n.id] = { iv: vault.plain[n.id] ? vault.plain[n.id].iv : null, text: v };
     vault.schedule(n.id);
   } else { n.body = v; put('notes', n, { debounce: true }); }
+  renderHL(false);
   $('saved').textContent = '저장 중…';
   clearTimeout(savedTimer);
   savedTimer = setTimeout(() => { $('saved').textContent = n.locked ? '암호화 저장됨' : '저장됨'; renderList(); }, 600);
@@ -727,7 +804,12 @@ $('notes').addEventListener('click', async e => {
   const it = e.target.closest('[data-id]'); if (it) openNote(it.dataset.id);
 });
 $('newBtn').onclick = newNote;
-$('q').addEventListener('input', e => { ui.q = e.target.value; renderList(); });
+$('q').addEventListener('input', e => { ui.q = e.target.value; renderList(); renderHL(true); });
+$('q').addEventListener('keydown', e => { // 엔터: 첫 번째 결과 열기
+  if (e.key !== 'Enter') return;
+  const first = $('notes').querySelector('[data-id]');
+  if (first) { e.preventDefault(); $('q').blur(); openNote(first.dataset.id); }
+});
 $('menuBtn').onclick = () => document.body.classList.add('drawer');
 $('scrim').onclick = () => document.body.classList.remove('drawer');
 $('backBtn').onclick = () => history.back();
