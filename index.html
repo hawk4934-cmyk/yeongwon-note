@@ -8,11 +8,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="한결노트">
+<meta name="apple-mobile-web-app-title" content="영원노트">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<title>한결노트</title>
+<title>영원노트</title>
 <style>
 :root{
   --bg:#F3F5F8; --side:#E8ECF1; --surface:#FFFFFF; --ink:#1F2633; --muted:#667080; --faint:#98A0AC;
@@ -143,7 +143,7 @@ dialog input[type=text],dialog input[type=email],dialog input[type=password]{wid
 <body>
 <div class="app">
   <aside class="side" id="side">
-    <div class="brand">한결노트</div>
+    <div class="brand">영원노트</div>
     <nav class="nav" id="nav"></nav>
     <div class="side-foot">
       <div class="sync" id="sync"><i></i><span>이 기기에만 저장 중</span></div>
@@ -523,7 +523,7 @@ $('exportBtn').onclick = () => {
   const a = document.createElement('a');
   const d = new Date();
   a.href = URL.createObjectURL(blob);
-  a.download = `한결노트_백업_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+  a.download = `영원노트_백업_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $('importBtn').onclick = () => $('importFile').click();
@@ -537,7 +537,7 @@ $('importFile').onchange = async e => {
     (d.folders || []).forEach(f => { const cur = data.folders[f.id]; if (!cur || cur.updatedAt < f.updatedAt) { data.folders[f.id] = f; cloud.push('folders', f); } });
     (d.notes || []).forEach(n => { const cur = data.notes[n.id]; if (!cur || cur.updatedAt < n.updatedAt) { data.notes[n.id] = n; cloud.push('notes', n); added++; } });
     saveLocal(); renderAll(); toast(`메모 ${added}개를 불러왔습니다`);
-  } catch (err) { toast('한결노트 백업 파일이 아닙니다'); }
+  } catch (err) { toast('영원노트 백업 파일이 아닙니다'); }
 };
 
 /* ---------- 알림 ---------- */

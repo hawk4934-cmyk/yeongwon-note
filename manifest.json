@@ -1,6 +1,6 @@
 {
-  "name": "한결노트",
-  "short_name": "한결노트",
+  "name": "영원노트",
+  "short_name": "영원노트",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
