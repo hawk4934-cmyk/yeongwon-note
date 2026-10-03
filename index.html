@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F3F5F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171B22" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="한결노트">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<title>한결노트</title>
+<style>
+:root{
+  --bg:#F3F5F8; --side:#E8ECF1; --surface:#FFFFFF; --ink:#1F2633; --muted:#667080; --faint:#98A0AC;
+  --line:#DCE1E8; --accent:#2F5D8A; --accent-soft:#E1EAF4; --danger:#C2463A;
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#171B22; --side:#1C2129; --surface:#20262F; --ink:#E6E9EE; --muted:#9AA3B0; --faint:#69727F;
+    --line:#2E3540; --accent:#86AEDB; --accent-soft:#25324A; --danger:#E0786C;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hidden{display:none!important}
+
+.app{display:grid;grid-template-columns:232px 330px 1fr;height:100%}
+
+/* 사이드바 */
+.side{background:var(--side);display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
+.brand{padding:20px 20px 12px;font-size:19px;font-weight:700;letter-spacing:-.02em}
+.nav{flex:1;overflow-y:auto;padding:4px 10px 10px}
+.nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:8px;text-align:left;font-size:15px}
+.nav-item:hover{background:rgba(127,140,160,.12)}
+.nav-item.on{background:var(--surface);font-weight:600;box-shadow:0 1px 0 var(--line)}
+.nav-item .count{margin-left:auto;color:var(--faint);font-size:13px;font-variant-numeric:tabular-nums}
+.nav-item .ico{width:16px;text-align:center;color:var(--muted);flex:none}
+.dot{width:11px;height:11px;border-radius:50%;flex:none;margin:0 2px}
+.nav-group{display:flex;align-items:center;justify-content:space-between;padding:16px 10px 6px;color:var(--muted);font-size:13px;font-weight:600}
+.icon-btn{width:32px;height:32px;border-radius:8px;display:inline-grid;place-items:center;color:var(--muted);font-size:18px;line-height:1;flex:none}
+.icon-btn:hover{background:rgba(127,140,160,.15);color:var(--ink)}
+.folder-row{display:flex;align-items:center}
+.folder-row .nav-item{flex:1;min-width:0}
+.folder-row .nav-item span.name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.folder-row .edit{opacity:0}
+.folder-row:hover .edit,.folder-row .nav-item.on + .edit{opacity:1}
+@media (hover:none){.folder-row .edit{opacity:1}}
+.side-foot{border-top:1px solid var(--line);padding:10px 14px 14px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:8px}
+.sync{display:flex;align-items:center;gap:8px}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
+.sync.ok i{background:#4E9C63}.sync.busy i{background:#D99A2B}.sync.err i{background:var(--danger)}
+.foot-links{display:flex;flex-wrap:wrap;gap:4px 12px}
+.link{color:var(--accent);font-size:13px}
+
+/* 목록 */
+.list{background:var(--bg);display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
+.list-head{padding:16px 16px 10px;display:flex;align-items:center;gap:8px}
+.list-title{font-size:20px;font-weight:700;letter-spacing:-.02em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-btn{display:none}
+.search{margin:0 16px 10px;position:relative}
+.search input{width:100%;padding:9px 12px 9px 34px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:15px}
+.search input:focus{outline:none;border-color:var(--accent)}
+.search::before{content:"";position:absolute;left:12px;top:50%;width:11px;height:11px;border:2px solid var(--faint);border-radius:50%;transform:translateY(-62%)}
+.search::after{content:"";position:absolute;left:23px;top:58%;width:6px;height:2px;background:var(--faint);transform:rotate(45deg)}
+.notes{flex:1;overflow-y:auto;padding:0 10px 90px}
+.note-item{display:block;width:100%;text-align:left;padding:12px 12px 12px 16px;border-radius:10px;position:relative;margin-bottom:2px}
+.note-item::before{content:"";position:absolute;left:5px;top:14px;bottom:14px;width:3px;border-radius:2px;background:var(--tab,transparent)}
+.note-item:hover{background:rgba(127,140,160,.10)}
+.note-item.on{background:var(--surface);box-shadow:0 1px 0 var(--line)}
+.note-title{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note-meta{display:flex;gap:8px;font-size:13px;color:var(--muted);margin-top:2px;min-width:0}
+.note-meta time{flex:none;font-variant-numeric:tabular-nums}
+.note-meta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pin{color:var(--accent);font-size:12px;margin-right:4px}
+.empty{padding:48px 24px;text-align:center;color:var(--muted);font-size:14px}
+.fab{position:absolute;right:20px;bottom:calc(20px + env(safe-area-inset-bottom,0px));width:54px;height:54px;border-radius:50%;background:var(--accent);color:#fff;font-size:28px;line-height:1;display:grid;place-items:center;box-shadow:0 4px 14px rgba(30,60,100,.28)}
+.list{position:relative}
+.trash-bar{margin:0 16px 10px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+
+/* 편집기 */
+.editor{background:var(--surface);display:flex;flex-direction:column;min-height:0}
+.ed-bar{display:flex;align-items:center;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.ed-bar .back{display:none}
+.ed-bar select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:5px 8px;font-size:14px;max-width:180px}
+.ed-bar .spacer{flex:1}
+.saved{font-size:12px;color:var(--faint);margin-right:6px}
+.icon-btn.on{color:var(--accent)}
+.ed-body{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ed-date{font-size:13px;color:var(--faint);text-align:center;padding:14px 0 0}
+textarea.ed{flex:1;width:100%;max-width:760px;margin:0 auto;border:0;resize:none;background:transparent;padding:14px 28px 40px;font-size:17px;line-height:1.75;outline:none}
+textarea.ed[readonly]{color:var(--muted)}
+.ed-empty{flex:1;display:grid;place-items:center;color:var(--faint);font-size:15px}
+.btn{padding:7px 14px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--surface)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{color:var(--danger)}
+
+/* 대화상자 */
+dialog{border:0;border-radius:14px;padding:22px;width:min(360px,calc(100% - 32px));background:var(--surface);color:var(--ink);box-shadow:0 20px 50px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(20,26,36,.4)}
+dialog h3{margin:0 0 14px;font-size:17px}
+dialog label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+dialog input[type=text],dialog input[type=email],dialog input[type=password]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);font-size:16px}
+.swatches{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.swatch{width:30px;height:30px;border-radius:50%;border:3px solid transparent}
+.swatch.on{border-color:var(--surface);box-shadow:0 0 0 2px var(--ink)}
+.dlg-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+.dlg-actions .left{margin-right:auto}
+.err{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px}
+.toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+.toast.show{opacity:1}
+.scrim{display:none}
+
+/* 태블릿 세로: 폴더는 서랍으로 */
+@media (max-width:1023px){
+  .app{grid-template-columns:330px 1fr}
+  .side{position:fixed;top:0;bottom:0;left:0;width:270px;z-index:30;transform:translateX(-100%);transition:transform .22s ease;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  body.drawer .side{transform:none}
+  body.drawer .scrim{display:block;position:fixed;inset:0;background:rgba(20,26,36,.35);z-index:20}
+  .menu-btn{display:inline-grid}
+}
+/* 휴대폰: 목록과 편집기를 번갈아 */
+@media (max-width:719px){
+  .app{grid-template-columns:1fr}
+  .editor{position:fixed;inset:0;z-index:15;transform:translateX(100%);transition:transform .22s ease;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  body.editing .editor{transform:none}
+  .ed-bar .back{display:inline-grid}
+  textarea.ed{padding:12px 20px 40px}
+  .list{border-right:0}
+}
+@media (prefers-reduced-motion:reduce){.side,.editor{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side">
+    <div class="brand">한결노트</div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <div class="sync" id="sync"><i></i><span>이 기기에만 저장 중</span></div>
+      <div class="foot-links">
+        <button class="link hidden" id="loginBtn">로그인</button>
+        <button class="link hidden" id="logoutBtn">로그아웃</button>
+        <button class="link" id="exportBtn">백업 내보내기</button>
+        <button class="link" id="importBtn">백업 불러오기</button>
+        <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <section class="list">
+    <div class="list-head">
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="폴더 열기">☰</button>
+      <div class="list-title" id="listTitle">전체 메모</div>
+    </div>
+    <div class="search"><input type="search" id="q" placeholder="메모 검색" autocomplete="off"></div>
+    <div class="trash-bar hidden" id="trashBar"><span>30일이 지나면 자동으로 지워집니다</span><button class="link" id="emptyTrash">비우기</button></div>
+    <div class="notes" id="notes"></div>
+    <button class="fab" id="newBtn" aria-label="새 메모">+</button>
+  </section>
+
+  <main class="editor" id="editor">
+    <div class="ed-bar" id="edBar">
+      <button class="icon-btn back" id="backBtn" aria-label="목록으로">‹</button>
+      <select id="folderSel" aria-label="폴더"></select>
+      <span class="spacer"></span>
+      <span class="saved" id="saved"></span>
+      <button class="icon-btn" id="pinBtn" aria-label="고정" title="맨 위에 고정">📌</button>
+      <button class="icon-btn" id="delBtn" aria-label="휴지통으로" title="휴지통으로">🗑</button>
+      <button class="btn hidden" id="restoreBtn">복원</button>
+      <button class="btn danger hidden" id="purgeBtn">영구 삭제</button>
+    </div>
+    <div class="ed-body" id="edBody">
+      <div class="ed-date" id="edDate"></div>
+      <textarea class="ed" id="ed" placeholder="첫 줄이 제목이 됩니다" spellcheck="false"></textarea>
+    </div>
+    <div class="ed-empty" id="edEmpty">메모를 선택하거나 새로 만드세요</div>
+  </main>
+</div>
+
+<dialog id="folderDlg">
+  <h3 id="folderDlgTitle">새 폴더</h3>
+  <label for="folderName">이름</label>
+  <input type="text" id="folderName" maxlength="30">
+  <label>색</label>
+  <div class="swatches" id="swatches"></div>
+  <div class="dlg-actions">
+    <button class="btn danger left hidden" id="folderDel">폴더 삭제</button>
+    <button class="btn" id="folderCancel">취소</button>
+    <button class="btn primary" id="folderSave">저장</button>
+  </div>
+</dialog>
+
+<dialog id="loginDlg">
+  <h3>로그인</h3>
+  <label for="email">이메일</label>
+  <input type="email" id="email" autocomplete="username">
+  <label for="pw">비밀번호</label>
+  <input type="password" id="pw" autocomplete="current-password">
+  <div class="err" id="loginErr"></div>
+  <div class="dlg-actions">
+    <button class="btn" id="loginLater">나중에</button>
+    <button class="btn primary" id="loginGo">로그인</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+   설정: Firebase로 기기 간 동기화를 하려면 아래 null 자리에
+   Firebase 콘솔의 설정값을 붙여넣으세요. null로 두면 이 기기에만 저장됩니다.
+   예)
+   const FIREBASE_CONFIG = {
+     apiKey: "...", authDomain: "...", projectId: "...",
+     storageBucket: "...", messagingSenderId: "...", appId: "..."
+   };
+   ================================================================ */
+const FIREBASE_CONFIG = null;
+
+const LS_KEY = 'hangyeol.data.v1';
+const TRASH_DAYS = 30;
+const COLORS = ['#E06C5A','#E3A33B','#5BAA6B','#3E9CA8','#4A78C9','#8A63C7','#C75B98','#7D8590'];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+let data = { folders: {}, notes: {} };
+let ui = { view: 'all', noteId: null, q: '' };
+
+/* ---------- 로컬 저장 (계정마다 따로 보관) ---------- */
+const GUEST_KEY = LS_KEY + ':guest';
+const LAST_UID_KEY = 'hangyeol.lastUid';
+let lsKey = GUEST_KEY;
+try { // 예전 버전 데이터를 '로그인 전' 보관함으로 옮김
+  const old = localStorage.getItem(LS_KEY);
+  if (old && !localStorage.getItem(GUEST_KEY)) localStorage.setItem(GUEST_KEY, old);
+  localStorage.removeItem(LS_KEY);
+  const last = FIREBASE_CONFIG && localStorage.getItem(LAST_UID_KEY);
+  if (last) lsKey = LS_KEY + ':' + last;
+} catch (e) {}
+
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(lsKey);
+    if (raw) { const d = JSON.parse(raw); data.folders = d.folders || {}; data.notes = d.notes || {}; }
+  } catch (e) { console.warn(e); }
+}
+function saveLocal() {
+  try { localStorage.setItem(lsKey, JSON.stringify(data)); }
+  catch (e) { toast('기기 저장 공간이 부족합니다. 백업을 내보내 주세요.'); }
+}
+
+/* ---------- 데이터 도우미 ---------- */
+const liveFolders = () => Object.values(data.folders).filter(f => !f.deleted).sort((a, b) => (a.order - b.order) || (a.createdAt - b.createdAt));
+const liveNotes = () => Object.values(data.notes).filter(n => !n.deleted);
+function titleOf(n) { const l = (n.body || '').split('\n').find(s => s.trim()); return l ? l.trim().slice(0, 60) : '새 메모'; }
+function previewOf(n) {
+  const lines = (n.body || '').split('\n').filter(s => s.trim());
+  return lines.slice(1).join(' ').slice(0, 80) || '추가 내용 없음';
+}
+function fmtDate(t) {
+  const d = new Date(t), now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toTimeString().slice(0, 5);
+  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+}
+function fmtFull(t) {
+  const d = new Date(t);
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${d.toTimeString().slice(0, 5)}`;
+}
+
+function put(kind, obj, { debounce = false } = {}) {
+  obj.updatedAt = Date.now();
+  data[kind][obj.id] = obj;
+  saveLocal();
+  cloud.push(kind, obj, debounce);
+}
+
+function purgeOldTrash() {
+  const limit = Date.now() - TRASH_DAYS * 864e5;
+  liveNotes().forEach(n => { if (n.trashed && n.trashedAt < limit) put('notes', { id: n.id, deleted: true }); });
+}
+
+/* ---------- 화면 그리기 ---------- */
+function viewNotes() {
+  let list = liveNotes();
+  if (ui.view === 'trash') list = list.filter(n => n.trashed);
+  else {
+    list = list.filter(n => !n.trashed);
+    if (ui.view === 'unfiled') list = list.filter(n => !n.folderId || !data.folders[n.folderId] || data.folders[n.folderId].deleted);
+    else if (ui.view !== 'all') list = list.filter(n => n.folderId === ui.view);
+  }
+  const q = ui.q.trim().toLowerCase();
+  if (q) list = list.filter(n => (n.body || '').toLowerCase().includes(q));
+  return list.sort((a, b) => ui.view === 'trash'
+    ? b.trashedAt - a.trashedAt
+    : (!!b.pinned - !!a.pinned) || (b.updatedAt - a.updatedAt));
+}
+
+function viewName() {
+  if (ui.view === 'all') return '전체 메모';
+  if (ui.view === 'unfiled') return '폴더 없음';
+  if (ui.view === 'trash') return '휴지통';
+  return data.folders[ui.view]?.name || '전체 메모';
+}
+
+function renderNav() {
+  const notes = liveNotes();
+  const active = notes.filter(n => !n.trashed);
+  const cnt = fid => active.filter(n => n.folderId === fid).length;
+  const unfiled = active.filter(n => !n.folderId || !data.folders[n.folderId] || data.folders[n.folderId].deleted).length;
+  const trash = notes.filter(n => n.trashed).length;
+  const item = (v, icon, name, c) =>
+    `<button class="nav-item ${ui.view === v ? 'on' : ''}" data-view="${v}">${icon}<span class="name">${esc(name)}</span><span class="count">${c || ''}</span></button>`;
+  let h = item('all', '<span class="ico">≡</span>', '전체 메모', active.length);
+  h += item('unfiled', '<span class="ico">○</span>', '폴더 없음', unfiled);
+  h += `<div class="nav-group"><span>폴더</span><button class="icon-btn" id="addFolder" aria-label="새 폴더" title="새 폴더">+</button></div>`;
+  liveFolders().forEach(f => {
+    h += `<div class="folder-row">${item(f.id, `<span class="dot" style="background:${f.color}"></span>`, f.name, cnt(f.id))}
+          <button class="icon-btn edit" data-edit="${f.id}" aria-label="${esc(f.name)} 폴더 편집">⋯</button></div>`;
+  });
+  h += `<div style="height:12px"></div>` + item('trash', '<span class="ico">🗑</span>', '휴지통', trash);
+  $('nav').innerHTML = h;
+}
+
+function renderList() {
+  $('listTitle').textContent = viewName();
+  $('trashBar').classList.toggle('hidden', ui.view !== 'trash');
+  $('newBtn').classList.toggle('hidden', ui.view === 'trash');
+  const list = viewNotes();
+  if (!list.length) {
+    $('notes').innerHTML = `<div class="empty">${ui.q ? '검색 결과가 없습니다' : ui.view === 'trash' ? '휴지통이 비어 있습니다' : '+ 버튼으로 첫 메모를 써 보세요'}</div>`;
+    return;
+  }
+  $('notes').innerHTML = list.map(n => {
+    const f = data.folders[n.folderId];
+    const tab = f && !f.deleted ? f.color : 'transparent';
+    return `<button class="note-item ${n.id === ui.noteId ? 'on' : ''}" data-id="${n.id}" style="--tab:${tab}">
+      <div class="note-title">${n.pinned && !n.trashed ? '<span class="pin">●</span>' : ''}${esc(titleOf(n))}</div>
+      <div class="note-meta"><time>${fmtDate(ui.view === 'trash' ? n.trashedAt : n.updatedAt)}</time><span>${esc(previewOf(n))}</span></div>
+    </button>`;
+  }).join('');
+}
+
+function renderEditor() {
+  const n = ui.noteId && data.notes[ui.noteId];
+  const has = n && !n.deleted;
+  $('edBody').classList.toggle('hidden', !has);
+  $('edEmpty').classList.toggle('hidden', !!has);
+  ['folderSel', 'pinBtn', 'delBtn', 'restoreBtn', 'purgeBtn', 'saved'].forEach(id => $(id).classList.add('hidden'));
+  if (!has) return;
+  const ed = $('ed');
+  if (ed.value !== n.body) ed.value = n.body || '';
+  ed.readOnly = !!n.trashed;
+  $('edDate').textContent = fmtFull(n.updatedAt);
+  if (n.trashed) {
+    $('restoreBtn').classList.remove('hidden'); $('purgeBtn').classList.remove('hidden');
+  } else {
+    const sel = $('folderSel');
+    sel.innerHTML = `<option value="">폴더 없음</option>` + liveFolders().map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+    sel.value = n.folderId && data.folders[n.folderId] && !data.folders[n.folderId].deleted ? n.folderId : '';
+    ['folderSel', 'pinBtn', 'delBtn', 'saved'].forEach(id => $(id).classList.remove('hidden'));
+    $('pinBtn').classList.toggle('on', !!n.pinned);
+  }
+}
+
+function renderAll() { renderNav(); renderList(); renderEditor(); }
+
+/* ---------- 동작 ---------- */
+const isPhone = () => matchMedia('(max-width:719px)').matches;
+
+function openNote(id) {
+  const prev = data.notes[ui.noteId];
+  if (prev && prev.id !== id && !prev.trashed && !prev.deleted && !(prev.body || '').trim()) put('notes', { id: prev.id, deleted: true }); // 빈 메모는 버림
+  ui.noteId = id;
+  renderList(); renderEditor();
+  if (isPhone() && !document.body.classList.contains('editing')) {
+    document.body.classList.add('editing');
+    history.pushState({ editing: true }, '');
+  }
+}
+function closeEditor() {
+  document.body.classList.remove('editing');
+  const n = data.notes[ui.noteId];
+  if (n && !n.trashed && !(n.body || '').trim()) { put('notes', { id: n.id, deleted: true }); ui.noteId = null; } // 빈 메모는 버림
+  renderAll();
+}
+
+function newNote() {
+  const folderId = data.folders[ui.view] && !data.folders[ui.view].deleted ? ui.view : null;
+  const n = { id: newId(), body: '', folderId, pinned: false, trashed: false, trashedAt: 0, createdAt: Date.now() };
+  put('notes', n);
+  ui.q = ''; $('q').value = '';
+  if (ui.view === 'trash') ui.view = 'all';
+  renderNav(); openNote(n.id);
+  setTimeout(() => $('ed').focus(), 60);
+}
+
+let saveTimer;
+$('ed').addEventListener('input', () => {
+  const n = data.notes[ui.noteId];
+  if (!n || n.trashed) return;
+  n.body = $('ed').value;
+  put('notes', n, { debounce: true });
+  $('saved').textContent = '저장 중…';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { $('saved').textContent = '저장됨'; renderList(); }, 500);
+});
+
+$('folderSel').addEventListener('change', e => {
+  const n = data.notes[ui.noteId]; if (!n) return;
+  n.folderId = e.target.value || null; put('notes', n); renderNav(); renderList();
+});
+$('pinBtn').onclick = () => {
+  const n = data.notes[ui.noteId]; if (!n) return;
+  n.pinned = !n.pinned; put('notes', n); renderList(); renderEditor();
+};
+$('delBtn').onclick = () => {
+  const n = data.notes[ui.noteId]; if (!n) return;
+  if (!(n.body || '').trim()) { put('notes', { id: n.id, deleted: true }); }
+  else { n.trashed = true; n.trashedAt = Date.now(); put('notes', n); toast('휴지통으로 옮겼습니다'); }
+  ui.noteId = null;
+  if (isPhone()) history.back(); else renderAll();
+};
+$('restoreBtn').onclick = () => {
+  const n = data.notes[ui.noteId]; if (!n) return;
+  n.trashed = false; n.trashedAt = 0;
+  if (n.folderId && (!data.folders[n.folderId] || data.folders[n.folderId].deleted)) n.folderId = null;
+  put('notes', n); toast('복원했습니다'); ui.noteId = null;
+  if (isPhone()) history.back(); else renderAll();
+};
+$('purgeBtn').onclick = () => {
+  if (!confirm('이 메모를 영구 삭제할까요? 되돌릴 수 없습니다.')) return;
+  put('notes', { id: ui.noteId, deleted: true }); ui.noteId = null;
+  if (isPhone()) history.back(); else renderAll();
+};
+$('emptyTrash').onclick = () => {
+  const t = liveNotes().filter(n => n.trashed);
+  if (!t.length || !confirm(`휴지통의 메모 ${t.length}개를 영구 삭제할까요?`)) return;
+  t.forEach(n => put('notes', { id: n.id, deleted: true }));
+  ui.noteId = null; renderAll();
+};
+
+$('nav').addEventListener('click', e => {
+  const ed = e.target.closest('[data-edit]');
+  if (ed) return openFolderDlg(ed.dataset.edit);
+  if (e.target.closest('#addFolder')) return openFolderDlg(null);
+  const it = e.target.closest('[data-view]');
+  if (!it) return;
+  ui.view = it.dataset.view; ui.noteId = null;
+  document.body.classList.remove('drawer');
+  renderAll();
+});
+$('notes').addEventListener('click', e => { const it = e.target.closest('[data-id]'); if (it) openNote(it.dataset.id); });
+$('newBtn').onclick = newNote;
+$('q').addEventListener('input', e => { ui.q = e.target.value; renderList(); });
+$('menuBtn').onclick = () => document.body.classList.add('drawer');
+$('scrim').onclick = () => document.body.classList.remove('drawer');
+$('backBtn').onclick = () => history.back();
+window.addEventListener('popstate', () => { if (document.body.classList.contains('editing')) closeEditor(); });
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); newNote(); }
+});
+
+/* ---------- 폴더 편집 ---------- */
+let folderEditing = null, folderColor = COLORS[4];
+function openFolderDlg(id) {
+  folderEditing = id;
+  const f = id ? data.folders[id] : null;
+  $('folderDlgTitle').textContent = f ? '폴더 편집' : '새 폴더';
+  $('folderName').value = f ? f.name : '';
+  folderColor = f ? f.color : COLORS[liveFolders().length % COLORS.length];
+  $('folderDel').classList.toggle('hidden', !f);
+  drawSwatches();
+  $('folderDlg').showModal();
+  setTimeout(() => $('folderName').focus(), 30);
+}
+function drawSwatches() {
+  $('swatches').innerHTML = COLORS.map(c => `<button class="swatch ${c === folderColor ? 'on' : ''}" data-c="${c}" style="background:${c}" aria-label="색 ${c}"></button>`).join('');
+}
+$('swatches').onclick = e => { const s = e.target.closest('[data-c]'); if (s) { folderColor = s.dataset.c; drawSwatches(); } };
+$('folderCancel').onclick = () => $('folderDlg').close();
+$('folderSave').onclick = () => {
+  const name = $('folderName').value.trim();
+  if (!name) return $('folderName').focus();
+  if (folderEditing) {
+    const f = data.folders[folderEditing]; f.name = name; f.color = folderColor; put('folders', f);
+  } else {
+    const order = liveFolders().reduce((m, f) => Math.max(m, f.order || 0), 0) + 1;
+    put('folders', { id: newId(), name, color: folderColor, order, createdAt: Date.now() });
+  }
+  $('folderDlg').close(); renderAll();
+};
+$('folderName').addEventListener('keydown', e => { if (e.key === 'Enter') $('folderSave').click(); });
+$('folderDel').onclick = () => {
+  const f = data.folders[folderEditing]; if (!f) return;
+  const inside = liveNotes().filter(n => n.folderId === f.id && !n.trashed);
+  const msg = inside.length ? `'${f.name}' 폴더를 삭제할까요?\n안에 있는 메모 ${inside.length}개는 휴지통으로 옮겨집니다.` : `'${f.name}' 폴더를 삭제할까요?`;
+  if (!confirm(msg)) return;
+  inside.forEach(n => { n.trashed = true; n.trashedAt = Date.now(); put('notes', n); });
+  put('folders', { id: f.id, deleted: true });
+  if (ui.view === f.id) ui.view = 'all';
+  ui.noteId = null; $('folderDlg').close(); renderAll();
+};
+
+/* ---------- 백업 ---------- */
+$('exportBtn').onclick = () => {
+  const out = { app: 'hangyeol-note', version: 1, exportedAt: new Date().toISOString(),
+    folders: liveFolders(), notes: liveNotes() };
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  const d = new Date();
+  a.href = URL.createObjectURL(blob);
+  a.download = `한결노트_백업_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    const d = JSON.parse(await file.text());
+    if (d.app !== 'hangyeol-note') throw new Error('형식');
+    let added = 0;
+    (d.folders || []).forEach(f => { const cur = data.folders[f.id]; if (!cur || cur.updatedAt < f.updatedAt) { data.folders[f.id] = f; cloud.push('folders', f); } });
+    (d.notes || []).forEach(n => { const cur = data.notes[n.id]; if (!cur || cur.updatedAt < n.updatedAt) { data.notes[n.id] = n; cloud.push('notes', n); added++; } });
+    saveLocal(); renderAll(); toast(`메모 ${added}개를 불러왔습니다`);
+  } catch (err) { toast('한결노트 백업 파일이 아닙니다'); }
+};
+
+/* ---------- 알림 ---------- */
+let toastT;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
+function setSync(state, text) { const s = $('sync'); s.className = 'sync ' + state; s.querySelector('span').textContent = text; }
+
+/* ---------- Firebase 동기화 ---------- */
+const cloud = {
+  fs: null, user: null, unsubs: [], timers: {},
+  col(kind) { return this.fs.collection('users').doc(this.user.uid).collection(kind); },
+  push(kind, obj, debounce) {
+    if (!this.fs || !this.user) return;
+    const key = kind + obj.id;
+    clearTimeout(this.timers[key]);
+    const send = () => {
+      const clean = JSON.parse(JSON.stringify(data[kind][obj.id] || obj)); // undefined 값 제거
+      this.col(kind).doc(obj.id).set(clean).catch(e => { console.warn(e); setSync('err', '동기화 실패 — 다시 시도 중'); });
+    };
+    debounce ? (this.timers[key] = setTimeout(send, 700)) : send();
+  },
+  start() {
+    this.stop();
+    setSync('busy', '동기화 중…');
+    ['folders', 'notes'].forEach(kind => {
+      let first = true;
+      const un = this.col(kind).onSnapshot({ includeMetadataChanges: true }, snap => {
+        let changed = false;
+        snap.docChanges().forEach(ch => {
+          if (ch.type === 'removed') return;
+          const r = ch.doc.data(), l = data[kind][ch.doc.id];
+          if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) { data[kind][ch.doc.id] = r; changed = true; }
+        });
+        if (first && !snap.metadata.fromCache) {
+          first = false;
+          const remote = {}; snap.docs.forEach(d => remote[d.id] = d.data());
+          Object.values(data[kind]).forEach(l => { const r = remote[l.id]; if (!r || (l.updatedAt || 0) > (r.updatedAt || 0)) this.push(kind, l); });
+        }
+        if (changed) {
+          saveLocal();
+          const editing = document.activeElement === $('ed');
+          renderNav(); renderList();
+          if (!editing) renderEditor();
+        }
+        if (snap.metadata.fromCache) setSync('busy', '오프라인 — 연결되면 동기화');
+        else if (snap.metadata.hasPendingWrites) setSync('busy', '동기화 중…');
+        else setSync('ok', `동기화됨 · ${this.user.email}`);
+      }, err => { console.warn(err); setSync('err', '동기화 권한 오류 — 보안 규칙을 확인하세요'); });
+      this.unsubs.push(un);
+    });
+  },
+  stop() { this.unsubs.forEach(u => u()); this.unsubs = []; }
+};
+
+/* 계정 전환: 각자 자기 메모만 보이도록 */
+function switchUser(uid) {
+  cloud.stop();
+  lsKey = uid ? LS_KEY + ':' + uid : GUEST_KEY;
+  try { uid ? localStorage.setItem(LAST_UID_KEY, uid) : localStorage.removeItem(LAST_UID_KEY); } catch (e) {}
+  data = { folders: {}, notes: {} };
+  loadLocal();
+  if (uid) {
+    // 로그인 전에 이 기기에서 쓴 메모가 있으면 옮길지 물어봄
+    let guest = null;
+    try { guest = JSON.parse(localStorage.getItem(GUEST_KEY) || 'null'); } catch (e) {}
+    const gNotes = guest ? Object.values(guest.notes || {}).filter(n => !n.deleted) : [];
+    if (gNotes.length && confirm(`로그인 전에 이 기기에서 쓴 메모 ${gNotes.length}개가 있습니다.\n지금 로그인한 계정으로 옮길까요?\n(취소하면 옮기지 않고 그대로 둡니다)`)) {
+      Object.assign(data.folders, guest.folders || {});
+      Object.assign(data.notes, guest.notes || {});
+      saveLocal();
+      localStorage.removeItem(GUEST_KEY);
+    }
+  }
+  ui.noteId = null; ui.view = 'all';
+  document.body.classList.remove('editing');
+  renderAll();
+}
+
+function loadScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+}
+
+async function initCloud() {
+  if (!FIREBASE_CONFIG) return;
+  const V = '10.12.2', base = `https://www.gstatic.com/firebasejs/${V}/`;
+  try {
+    await loadScript(base + 'firebase-app-compat.js');
+    await Promise.all([loadScript(base + 'firebase-auth-compat.js'), loadScript(base + 'firebase-firestore-compat.js')]);
+  } catch (e) { setSync('err', '오프라인 — 이 기기에 저장 중'); return; }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  cloud.fs = firebase.firestore();
+  try { await cloud.fs.enablePersistence({ synchronizeTabs: true }); } catch (e) {}
+  firebase.auth().onAuthStateChanged(u => {
+    cloud.user = u;
+    $('loginBtn').classList.toggle('hidden', !!u);
+    $('logoutBtn').classList.toggle('hidden', !u);
+    if (u) { $('loginDlg').open && $('loginDlg').close(); switchUser(u.uid); cloud.start(); }
+    else { switchUser(null); setSync('', '로그인하면 기기 간 동기화'); $('pw').value = ''; $('loginDlg').showModal(); }
+  });
+}
+$('loginBtn').onclick = () => $('loginDlg').showModal();
+$('loginLater').onclick = () => $('loginDlg').close();
+$('logoutBtn').onclick = () => { if (confirm('로그아웃할까요? 다시 로그인하면 메모가 그대로 보입니다.')) firebase.auth().signOut(); };
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginGo').click(); });
+$('loginGo').onclick = async () => {
+  $('loginErr').textContent = '';
+  try { await firebase.auth().signInWithEmailAndPassword($('email').value.trim(), $('pw').value); }
+  catch (e) {
+    const m = { 'auth/invalid-email': '이메일 형식을 확인하세요', 'auth/invalid-credential': '이메일 또는 비밀번호가 맞지 않습니다',
+      'auth/wrong-password': '비밀번호가 맞지 않습니다', 'auth/user-not-found': '등록되지 않은 계정입니다',
+      'auth/too-many-requests': '시도가 너무 많습니다. 잠시 후 다시 해 보세요', 'auth/network-request-failed': '인터넷 연결을 확인하세요' };
+    $('loginErr').textContent = m[e.code] || e.message;
+  }
+};
+
+/* ---------- 시작 ---------- */
+loadLocal();
+purgeOldTrash();
+renderAll();
+initCloud();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
