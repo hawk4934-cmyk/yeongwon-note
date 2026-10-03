@@ -105,6 +105,9 @@ textarea.ed{resize:none;background:transparent;outline:none;overflow-y:auto;z-in
 .hl mark.cur{background:var(--hl-cur)}
 .hits{display:flex;align-items:center;gap:2px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .hits .icon-btn{width:28px;height:28px;font-size:13px}
+.note-item .note-title{display:flex;align-items:center;gap:4px}
+.note-title .tt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-title .hitcount{margin-left:auto;flex:none;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:10px;padding:1px 8px}
 textarea.ed[readonly]{color:var(--muted)}
 .ed-empty{flex:1;display:grid;place-items:center;color:var(--faint);font-size:15px}
 .btn{padding:7px 14px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--surface)}
@@ -560,15 +563,23 @@ function purgeOldTrash() {
 }
 
 /* ---------- 화면 그리기 ---------- */
+let hitCounts = {};
 function viewNotes() {
   let list = liveNotes();
   const terms = searchTerms();
   if (terms.length) { // 검색할 때는 폴더와 상관없이 전체에서 찾음 (휴지통에서는 휴지통 안에서)
+    const q = terms[0];
+    hitCounts = {};
     list = list.filter(n => !!n.trashed === (ui.view === 'trash')).filter(n => {
       const t = textOf(n); if (t === null) return false;
-      const low = t.toLowerCase(); return terms.every(w => low.includes(w));
+      const low = t.toLowerCase();
+      let c = 0, i = low.indexOf(q);
+      while (i !== -1) { c++; i = low.indexOf(q, i + q.length); }
+      if (c) hitCounts[n.id] = c;
+      return c > 0;
     });
-    return list.sort((a, b) => b.updatedAt - a.updatedAt);
+    // 검색어가 많이 나온 메모부터, 같으면 최근에 고친 메모부터
+    return list.sort((a, b) => (hitCounts[b.id] - hitCounts[a.id]) || (b.updatedAt - a.updatedAt));
   }
   if (ui.view === 'trash') list = list.filter(n => n.trashed);
   else {
@@ -617,7 +628,10 @@ function renderList() {
   }
   const list = viewNotes();
   const re = termRegex();
-  if (re) $('listTitle').textContent = `검색 결과 ${list.length}개` + (ui.view === 'trash' ? ' (휴지통)' : '');
+  if (re) {
+    const total = list.reduce((sum, n) => sum + (hitCounts[n.id] || 0), 0);
+    $('listTitle').textContent = `검색 결과 ${list.length}개 메모 · ${total}곳` + (ui.view === 'trash' ? ' (휴지통)' : '');
+  }
   if (!list.length) {
     $('notes').innerHTML = `<div class="empty">${ui.q ? '검색 결과가 없습니다' : ui.view === 'trash' ? '휴지통이 비어 있습니다' : '+ 버튼으로 첫 메모를 써 보세요'}</div>`;
     return;
@@ -627,7 +641,7 @@ function renderList() {
     const tab = f && !f.deleted ? f.color : 'transparent';
     const sealed = textOf(n) === null;
     return `<button class="note-item ${n.id === ui.noteId ? 'on' : ''} ${sealed ? 'sealed' : ''}" data-id="${n.id}" style="--tab:${tab}">
-      <div class="note-title">${n.pinned && !n.trashed ? '<span class="pin">●</span>' : ''}${n.locked ? '<span class="lockmark">🔒</span>' : ''}${hlHtml(titleOf(n), sealed ? null : re)}</div>
+      <div class="note-title">${n.pinned && !n.trashed ? '<span class="pin">●</span>' : ''}${n.locked ? '<span class="lockmark">🔒</span>' : ''}<span class="tt">${hlHtml(titleOf(n), sealed ? null : re)}</span>${re && hitCounts[n.id] ? `<span class="hitcount">${hitCounts[n.id]}회</span>` : ''}</div>
       <div class="note-meta"><time>${fmtDate(ui.view === 'trash' ? n.trashedAt : n.updatedAt)}</time><span>${(() => { const sn = snippetOf(n, re); return sn ? hlHtml(sn, re) : esc(previewOf(n)); })()}</span></div>
     </button>`;
   }).join('');
