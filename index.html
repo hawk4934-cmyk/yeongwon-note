@@ -77,8 +77,8 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .note-item::before{content:"";position:absolute;left:5px;top:14px;bottom:14px;width:3px;border-radius:2px;background:var(--tab,transparent)}
 .note-item:hover{background:rgba(127,140,160,.10)}
 .note-item.on{background:var(--surface);box-shadow:0 1px 0 var(--line)}
-.note-title{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.note-meta{display:flex;gap:8px;font-size:13px;color:var(--muted);margin-top:2px;min-width:0}
+.note-title{font-weight:600;font-size:calc(var(--ed-size,17px) * .88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note-meta{display:flex;gap:8px;font-size:calc(var(--ed-size,17px) * .76);color:var(--muted);margin-top:2px;min-width:0}
 .note-meta time{flex:none;font-variant-numeric:tabular-nums}
 .note-meta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .list,.editor,.notes,.note-item{min-width:0}
@@ -91,11 +91,15 @@ button{cursor:pointer;background:none;border:0;padding:0}
 
 /* 편집기 */
 .editor{background:var(--surface);display:flex;flex-direction:column;min-height:0;position:relative}
-.fs-pop{position:absolute;top:58px;right:12px;z-index:5;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 8px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
-.fs-pop button{min-width:44px;height:36px;border-radius:8px;font-weight:600;background:var(--bg)}
-.fs-pop button:nth-of-type(2){font-size:19px}
-.fs-pop span{min-width:52px;text-align:center;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
-#fsBtn{font-weight:700;font-size:16px}
+.fmt-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--surface)}
+.fmt-group{display:flex;align-items:center;gap:5px}
+.fmt-label{font-size:12px;color:var(--muted);margin-right:2px}
+.sw{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);flex:none}
+.sw.hl-sw{border-radius:6px}
+.fmt-btn{height:30px;min-width:32px;padding:0 8px;border-radius:8px;background:var(--bg);font-size:14px;font-weight:600}
+.fmt-size span{min-width:40px;text-align:center;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+#fmtBtn{font-weight:700;font-size:16px}
+#fmtBtn.on{background:var(--accent-soft)}
 .ed-bar{display:flex;align-items:center;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line)}
 .ed-bar .back{display:none}
 .ed-bar select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:5px 8px;font-size:14px;max-width:180px}
@@ -105,17 +109,19 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .ed-body{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .ed-date{font-size:13px;color:var(--faint);text-align:center;padding:14px 0 0}
 mark{background:var(--hl);color:inherit;border-radius:2px}
-.ed-wrap{flex:1;position:relative;width:100%;max-width:760px;margin:0 auto;min-height:0}
-textarea.ed,.hl{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;box-sizing:border-box;padding:14px 28px 40px;font-family:var(--font);font-size:var(--ed-size,17px);line-height:1.75;letter-spacing:normal;white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;scrollbar-gutter:stable}
-textarea.ed{resize:none;background:transparent;outline:none;overflow-y:auto;z-index:1}
-.hl{color:transparent;pointer-events:none;overflow:hidden}
-.hl mark.cur{background:var(--hl-cur)}
+#ed{flex:1;min-height:0;overflow-y:auto;outline:none;padding:14px max(28px, calc(50% - 352px)) 60px;font-family:var(--font);font-size:var(--ed-size,17px);line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere;position:relative}
+#ed.empty::before{content:attr(data-ph);color:var(--faint);pointer-events:none;position:absolute}
+#ed[contenteditable="false"]{color:var(--muted)}
+#ed [style*="background-color"]{color:#1F2633;border-radius:2px}
+#ed b,#ed strong{font-weight:700}
+mark{background:var(--hl);color:inherit;border-radius:2px}
+::highlight(hl){background-color:var(--hl);text-decoration:underline 2px var(--hl-cur)}
+::highlight(hlcur){background-color:var(--hl-cur);text-decoration:underline 2px var(--hl-cur)}
 .hits{display:flex;align-items:center;gap:2px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .hits .icon-btn{width:28px;height:28px;font-size:13px}
 .note-item .note-title{display:flex;align-items:center;gap:4px}
 .note-title .tt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .note-title .hitcount{margin-left:auto;flex:none;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:10px;padding:1px 8px}
-textarea.ed[readonly]{color:var(--muted)}
 .ed-empty{flex:1;display:grid;place-items:center;color:var(--faint);font-size:15px}
 .btn{padding:7px 14px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--surface)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -157,7 +163,8 @@ dialog input[type=text],dialog input[type=email],dialog input[type=password]{wid
   .ed-bar select{max-width:96px}
   .ed-bar .icon-btn{width:30px}
   .hits:not(.hidden) ~ .saved{display:none}
-  textarea.ed,.hl{padding:12px 20px 40px}
+  #ed{padding:12px 20px 60px}
+  .fmt-bar{padding:8px 10px}
   .list{border-right:0}
 }
 @media (prefers-reduced-motion:reduce){.side,.editor{transition:none}}
@@ -214,22 +221,38 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
       <span class="spacer"></span>
       <span class="hits hidden" id="hits"><button class="icon-btn" id="hitPrev" aria-label="이전 검색어">▲</button><span id="hitCount"></span><button class="icon-btn" id="hitNext" aria-label="다음 검색어">▼</button></span>
       <span class="saved" id="saved"></span>
-      <button class="icon-btn hidden" id="fsBtn" aria-label="글씨 크기" title="글씨 크기">가</button>
+      <button class="icon-btn hidden" id="fmtBtn" aria-label="글자색·형광펜·크기" title="글자색·형광펜·크기">가</button>
       <button class="icon-btn" id="lockBtn" aria-label="잠금" title="이 메모 잠그기">🔒</button>
       <button class="icon-btn" id="pinBtn" aria-label="고정" title="맨 위에 고정">📌</button>
       <button class="icon-btn" id="delBtn" aria-label="휴지통으로" title="휴지통으로">🗑</button>
       <button class="btn hidden" id="restoreBtn">복원</button>
       <button class="btn danger hidden" id="purgeBtn">영구 삭제</button>
     </div>
-    <div class="fs-pop hidden" id="fsPop" role="group" aria-label="글씨 크기">
-      <button id="fsDown" aria-label="글씨 작게">가−</button><span id="fsVal"></span><button id="fsUp" aria-label="글씨 크게">가+</button>
+    <div class="fmt-bar hidden" id="fmtBar">
+      <div class="fmt-group"><span class="fmt-label">글자색</span>
+        <button class="sw" data-fore="#E5484D" style="background:#E5484D" aria-label="빨강 글자"></button>
+        <button class="sw" data-fore="#E8820C" style="background:#E8820C" aria-label="주황 글자"></button>
+        <button class="sw" data-fore="#2E9E5B" style="background:#2E9E5B" aria-label="초록 글자"></button>
+        <button class="sw" data-fore="#2F7FD8" style="background:#2F7FD8" aria-label="파랑 글자"></button>
+        <button class="sw" data-fore="#8A5CD6" style="background:#8A5CD6" aria-label="보라 글자"></button>
+      </div>
+      <div class="fmt-group"><span class="fmt-label">형광펜</span>
+        <button class="sw hl-sw" data-hl="#FFF06A" style="background:#FFF06A" aria-label="노랑 형광펜"></button>
+        <button class="sw hl-sw" data-hl="#B8F5A0" style="background:#B8F5A0" aria-label="연두 형광펜"></button>
+        <button class="sw hl-sw" data-hl="#FFC2DD" style="background:#FFC2DD" aria-label="분홍 형광펜"></button>
+        <button class="sw hl-sw" data-hl="#B5E3FF" style="background:#B5E3FF" aria-label="하늘 형광펜"></button>
+      </div>
+      <div class="fmt-group">
+        <button class="fmt-btn" data-cmd="bold" aria-label="굵게"><b>B</b></button>
+        <button class="fmt-btn" data-cmd="removeFormat" aria-label="서식 지우기">지우기</button>
+      </div>
+      <div class="fmt-group fmt-size"><span class="fmt-label">크기</span>
+        <button class="fmt-btn" id="fsDown" aria-label="글씨 작게">가−</button><span id="fsVal"></span><button class="fmt-btn" id="fsUp" aria-label="글씨 크게">가+</button>
+      </div>
     </div>
     <div class="ed-body" id="edBody">
       <div class="ed-date" id="edDate"></div>
-      <div class="ed-wrap">
-        <div class="hl" id="hl" aria-hidden="true"></div>
-        <textarea class="ed" id="ed" placeholder="첫 줄이 제목이 됩니다" spellcheck="false"></textarea>
-      </div>
+      <div id="ed" contenteditable="true" spellcheck="false" data-ph="첫 줄이 제목이 됩니다"></div>
     </div>
     <div class="ed-locked hidden" id="edLocked">
       <div class="big">🔒</div>
@@ -385,7 +408,7 @@ const vault = {
     for (const n of Object.values(data.notes)) {
       if (!n.locked || !n.enc || n.deleted || this.pending[n.id]) continue;
       if (this.plain[n.id] && this.plain[n.id].iv === n.enc.iv) continue;
-      try { this.plain[n.id] = { iv: n.enc.iv, text: await this.dec(n.enc) }; }
+      try { this.plain[n.id] = Object.assign({ iv: n.enc.iv }, parsePayload(await this.dec(n.enc))); }
       catch (e) { delete this.plain[n.id]; }
     }
   },
@@ -398,17 +421,69 @@ const vault = {
     clearTimeout(this.timers[id]);
     const n = data.notes[id], p = this.plain[id];
     if (!this.key || !n || !p) { delete this.pending[id]; return; }
-    const text = p.text;
-    const e = await this.enc(text);
+    const html = p.html;
+    const e = await this.enc(makePayload(html));
     if (!this.key) return;
-    n.enc = e; n.body = '';
+    n.enc = e; n.body = ''; n.html = null;
     put('notes', n, { debounce: true });
-    if (this.plain[id] && this.plain[id].text === text) { this.plain[id].iv = e.iv; delete this.pending[id]; }
+    if (this.plain[id] && this.plain[id].html === html) { this.plain[id].iv = e.iv; delete this.pending[id]; }
   },
   async flush() { for (const id of Object.keys(this.pending)) await this.saveNow(id); },
   reset() { Object.values(this.timers).forEach(clearTimeout); this.key = null; this.salt = null; this.plain = {}; this.timers = {}; this.pending = {}; },
   async lock() { await this.flush(); this.reset(); renderAll(); }
 };
+
+/* ---------- 서식(색·형광펜) 있는 본문 ----------
+   unlocked 메모: body = 순수 글자(검색·제목용), html = 서식 포함 본문
+   잠긴 메모: enc 안에 {"v":2,"html":...} 를 암호화 (예전 잠긴 메모는 순수 글자) */
+const BLOCK_RE = /^(DIV|P|LI|H[1-6]|BLOCKQUOTE|PRE|UL|OL)$/;
+function walkText(root, onText) {
+  let out = '';
+  (function rec(node) {
+    for (let c = node.firstChild; c; c = c.nextSibling) {
+      if (c.nodeType === 3) { if (onText) onText(c, out.length); out += c.nodeValue; }
+      else if (c.nodeType === 1) {
+        if (c.tagName === 'BR') { out += '\n'; continue; }
+        const block = BLOCK_RE.test(c.tagName);
+        if (block && out.length && !out.endsWith('\n')) out += '\n';
+        rec(c);
+        if (block && !out.endsWith('\n')) out += '\n';
+      }
+    }
+  })(root);
+  return out.endsWith('\n') ? out.slice(0, -1) : out;
+}
+function htmlToText(html) { const t = document.createElement('template'); t.innerHTML = html || ''; return walkText(t.content); }
+function textToHtml(text) { return (text || '').split('\n').map(l => l ? `<div>${esc(l)}</div>` : '<div><br></div>').join(''); }
+const ALLOWED_TAGS = /^(DIV|P|BR|SPAN|B|STRONG|I|EM|U|FONT)$/;
+function sanitize(html) { // 저장된 본문을 화면에 넣기 전, 허용한 서식만 남김
+  const t = document.createElement('template'); t.innerHTML = html || '';
+  (function clean(node) {
+    for (let c = node.firstChild; c; ) {
+      const next = c.nextSibling;
+      if (c.nodeType === 1) {
+        if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META|IMG|SVG|VIDEO|AUDIO|FORM|INPUT|TEXTAREA|BUTTON)$/.test(c.tagName)) { c.remove(); }
+        else if (!ALLOWED_TAGS.test(c.tagName)) { clean(c); while (c.firstChild) node.insertBefore(c.firstChild, c); c.remove(); }
+        else {
+          const color = c.style.color || (c.tagName === 'FONT' ? c.getAttribute('color') : '');
+          const bg = c.style.backgroundColor, fw = c.style.fontWeight;
+          [...c.attributes].forEach(a => c.removeAttribute(a.name));
+          if (color) c.style.color = color;
+          if (bg) c.style.backgroundColor = bg;
+          if (fw) c.style.fontWeight = fw;
+          clean(c);
+        }
+      } else if (c.nodeType !== 3) c.remove();
+      c = next;
+    }
+  })(t.content);
+  return t.innerHTML;
+}
+function parsePayload(raw) {
+  if (raw && raw.startsWith('{"v":2')) { try { const o = JSON.parse(raw); return { html: o.html || '', text: htmlToText(o.html) }; } catch (e) {} }
+  return { html: textToHtml(raw || ''), text: raw || '' };
+}
+const makePayload = html => JSON.stringify({ v: 2, html });
 
 /* 잠긴 메모의 내용: 읽을 수 없으면 null */
 function textOf(n) {
@@ -416,20 +491,26 @@ function textOf(n) {
   if (!n.enc) return vault.plain[n.id] ? vault.plain[n.id].text : '';
   return vault.plain[n.id] ? vault.plain[n.id].text : null;
 }
+function htmlOf(n) {
+  if (!n.locked) return n.html || textToHtml(n.body || '');
+  const p = vault.plain[n.id];
+  return p ? (p.html != null ? p.html : textToHtml(p.text)) : '';
+}
 const isEmpty = n => { const t = textOf(n); return t !== null && !t.trim(); };
 const folderLocked = fid => { const f = data.folders[fid]; return !!(f && !f.deleted && f.locked); };
 
 async function lockNote(n) {
-  const text = n.body || '';
-  const e = await vault.enc(text);
-  n.locked = true; n.enc = e; n.body = '';
-  vault.plain[n.id] = { iv: e.iv, text };
+  const text = n.body || '', html = htmlOf(n);
+  const e = await vault.enc(makePayload(html));
+  n.locked = true; n.enc = e; n.body = ''; n.html = null;
+  vault.plain[n.id] = { iv: e.iv, text, html };
   put('notes', n);
 }
 async function unlockNote(n) {
   if (vault.pending[n.id]) await vault.saveNow(n.id);
   const t = textOf(n);
   if (t === null) return false;
+  n.html = htmlOf(n);
   n.locked = false; n.body = t; n.enc = null;
   delete vault.plain[n.id];
   put('notes', n);
@@ -499,7 +580,7 @@ async function changeVaultPw(oldPw, newPw) {
   for (const n of locked) {
     const e = await vault.enc(texts[n.id], newKey);
     n.enc = e; put('notes', n);
-    vault.plain[n.id] = { iv: e.iv, text: texts[n.id] };
+    vault.plain[n.id] = Object.assign({ iv: e.iv }, parsePayload(texts[n.id]));
   }
   put('meta', { id: 'vault', salt, iter, check: await vault.enc(CHECK_TEXT, newKey) });
   vault.key = newKey; vault.salt = salt; touch();
@@ -662,36 +743,61 @@ function renderList() {
   }).join('');
 }
 
-let hitIdx = 0;
+let hitIdx = 0, hitRanges = [];
+const canHL = !!(window.CSS && CSS.highlights && window.Highlight);
 function renderHL(jump) {
-  const n = ui.noteId && data.notes[ui.noteId], ed = $('ed'), hl = $('hl');
-  const re = n && textOf(n) !== null ? termRegex() : null;
-  if (!re) { hl.innerHTML = ''; $('hits').classList.add('hidden'); return; }
-  hl.innerHTML = hlHtml(ed.value, re) + '\n ';
-  const marks = hl.querySelectorAll('mark');
-  $('hits').classList.toggle('hidden', !marks.length);
-  if (!marks.length) return;
-  if (jump) hitIdx = 0;
-  hitIdx = Math.min(hitIdx, marks.length - 1);
-  marks.forEach((m, i) => m.classList.toggle('cur', i === hitIdx));
-  $('hitCount').textContent = `${hitIdx + 1}/${marks.length}`;
-  if (jump) {
-    ed.scrollTop = Math.max(0, marks[hitIdx].offsetTop - ed.clientHeight / 3);
+  const n = ui.noteId && data.notes[ui.noteId], ed = $('ed');
+  if (canHL) { CSS.highlights.delete('hl'); CSS.highlights.delete('hlcur'); }
+  hitRanges = [];
+  const q = n && textOf(n) !== null ? (searchTerms()[0] || '') : '';
+  if (!q) { $('hits').classList.add('hidden'); return; }
+  const nodes = [];
+  const low = walkText(ed, (node, start) => nodes.push([node, start])).toLowerCase();
+  const locate = pos => { // 전체 글자 위치 → (글자 노드, 노드 안 위치)
+    for (let i = nodes.length - 1; i >= 0; i--) if (nodes[i][1] <= pos) return [nodes[i][0], Math.min(pos - nodes[i][1], nodes[i][0].nodeValue.length)];
+    return null;
+  };
+  for (let i = low.indexOf(q); i !== -1; i = low.indexOf(q, i + q.length)) {
+    const a = locate(i), b = locate(i + q.length - 1);
+    if (!a || !b) continue;
+    const r = document.createRange();
+    try { r.setStart(a[0], a[1]); r.setEnd(b[0], b[1] + 1); hitRanges.push(r); } catch (e) {}
   }
-  hl.scrollTop = ed.scrollTop;
+  $('hits').classList.toggle('hidden', !hitRanges.length);
+  if (!hitRanges.length) return;
+  if (jump) hitIdx = 0;
+  hitIdx = Math.min(hitIdx, hitRanges.length - 1);
+  paintHits(jump);
+}
+function paintHits(scroll) {
+  $('hitCount').textContent = `${hitIdx + 1}/${hitRanges.length}`;
+  if (canHL) {
+    CSS.highlights.set('hl', new Highlight(...hitRanges.filter((r, i) => i !== hitIdx)));
+    CSS.highlights.set('hlcur', new Highlight(hitRanges[hitIdx]));
+  }
+  if (scroll) {
+    const ed = $('ed'), r = hitRanges[hitIdx].getBoundingClientRect(), box = ed.getBoundingClientRect();
+    ed.scrollTop += r.top - box.top - ed.clientHeight / 3;
+  }
 }
 function stepHit(d) {
-  const c = $('hl').querySelectorAll('mark').length; if (!c) return;
-  hitIdx = (hitIdx + d + c) % c;
-  const keep = hitIdx; renderHL(false); hitIdx = keep;
-  const m = $('hl').querySelectorAll('mark')[hitIdx];
-  $('ed').scrollTop = Math.max(0, m.offsetTop - $('ed').clientHeight / 3);
-  $('hl').scrollTop = $('ed').scrollTop;
+  if (!hitRanges.length) return;
+  hitIdx = (hitIdx + d + hitRanges.length) % hitRanges.length;
+  paintHits(true);
 }
 $('hitPrev').onclick = () => stepHit(-1);
 $('hitNext').onclick = () => stepHit(1);
-$('ed').addEventListener('scroll', () => { $('hl').scrollTop = $('ed').scrollTop; });
-window.addEventListener('resize', () => renderHL(false));
+
+let edSrc = null, edNote = null; // 편집기에 지금 들어 있는 본문의 원본 (타이핑 중 커서가 튀지 않게)
+function setEdContent(id, html) {
+  if (edNote === id && edSrc === html) return;
+  const ed = $('ed');
+  ed.innerHTML = sanitize(html);
+  edSrc = html; edNote = id;
+  ed.scrollTop = 0;
+  updateEmpty();
+}
+function updateEmpty() { const ed = $('ed'); ed.classList.toggle('empty', !walkText(ed).trim()); }
 
 function renderEditor(jump) {
   const n = ui.noteId && data.notes[ui.noteId];
@@ -700,13 +806,17 @@ function renderEditor(jump) {
   $('edBody').classList.toggle('hidden', !has || sealed);
   $('edLocked').classList.toggle('hidden', !sealed);
   $('edEmpty').classList.toggle('hidden', !!has);
-  ['folderSel', 'lockBtn', 'pinBtn', 'delBtn', 'restoreBtn', 'purgeBtn', 'saved', 'hits', 'fsBtn'].forEach(id => $(id).classList.add('hidden'));
+  ['folderSel', 'lockBtn', 'pinBtn', 'delBtn', 'restoreBtn', 'purgeBtn', 'saved', 'hits', 'fmtBtn'].forEach(id => $(id).classList.add('hidden'));
+  $('fmtBar').classList.add('hidden');
+  if (!has || sealed) { edNote = null; edSrc = null; }
   if (!has) return;
   if (sealed) { if (!n.trashed) $('delBtn').classList.remove('hidden'); else $('purgeBtn').classList.remove('hidden'); return; }
-  const ed = $('ed'), t = textOf(n);
-  if (ed.value !== t) ed.value = t;
-  ed.readOnly = !!n.trashed;
-  $('fsBtn').classList.remove('hidden');
+  const ed = $('ed');
+  setEdContent(n.id, htmlOf(n));
+  ed.contentEditable = n.trashed ? 'false' : 'true';
+  $('fmtBtn').classList.remove('hidden');
+  $('fmtBar').classList.toggle('hidden', !fmtOpen || !!n.trashed);
+  $('fmtBtn').classList.toggle('on', fmtOpen && !n.trashed);
   requestAnimationFrame(() => renderHL(jump));
   $('edDate').textContent = fmtFull(n.updatedAt) + (n.locked ? ' · 🔒 암호화됨' : '');
   if (n.trashed) { $('restoreBtn').classList.remove('hidden'); $('purgeBtn').classList.remove('hidden'); return; }
@@ -721,9 +831,9 @@ function renderEditor(jump) {
 
 function renderAll() { renderNav(); renderList(); renderEditor(); }
 
-/* ---------- 글씨 크기 (기기마다 따로 기억) ---------- */
+/* ---------- 글자색·형광펜·굵게 / 글씨 크기 ---------- */
 const FS_KEY = 'hangyeol.fontSize', FS_MIN = 13, FS_MAX = 32;
-let fontSize = 17;
+let fontSize = 17, fmtOpen = false;
 try { fontSize = Math.min(FS_MAX, Math.max(FS_MIN, parseInt(localStorage.getItem(FS_KEY), 10) || 17)); } catch (e) {}
 function applyFont() {
   document.documentElement.style.setProperty('--ed-size', fontSize + 'px');
@@ -732,10 +842,36 @@ function applyFont() {
   try { localStorage.setItem(FS_KEY, fontSize); } catch (e) {}
   requestAnimationFrame(() => renderHL(false));
 }
-$('fsBtn').onclick = e => { e.stopPropagation(); $('fsPop').classList.toggle('hidden'); };
-$('fsDown').onclick = e => { e.stopPropagation(); fontSize = Math.max(FS_MIN, fontSize - 1); applyFont(); };
-$('fsUp').onclick = e => { e.stopPropagation(); fontSize = Math.min(FS_MAX, fontSize + 1); applyFont(); };
-document.addEventListener('pointerdown', e => { if (!e.target.closest('#fsPop, #fsBtn')) $('fsPop').classList.add('hidden'); });
+$('fmtBtn').onclick = () => { fmtOpen = !fmtOpen; $('fmtBar').classList.toggle('hidden', !fmtOpen); $('fmtBtn').classList.toggle('on', fmtOpen); };
+
+let savedRange = null; // 버튼을 누를 때 선택 영역이 사라지지 않게 기억
+document.addEventListener('selectionchange', () => {
+  const s = window.getSelection();
+  if (s.rangeCount && $('ed').contains(s.anchorNode)) savedRange = s.getRangeAt(0).cloneRange();
+});
+function restoreSel() {
+  const ed = $('ed');
+  if (document.activeElement !== ed) ed.focus({ preventScroll: true });
+  if (savedRange && ed.contains(savedRange.startContainer)) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(savedRange); }
+}
+function applyFormat(btn) {
+  const n = data.notes[ui.noteId];
+  if (!n || n.trashed || (n.locked && !vault.key)) return;
+  restoreSel();
+  try { document.execCommand('styleWithCSS', false, true); } catch (e) {}
+  if (btn.dataset.fore) document.execCommand('foreColor', false, btn.dataset.fore);
+  else if (btn.dataset.hl) { if (!document.execCommand('hiliteColor', false, btn.dataset.hl)) document.execCommand('backColor', false, btn.dataset.hl); }
+  else if (btn.dataset.cmd) document.execCommand(btn.dataset.cmd, false, null);
+  onEdInput();
+}
+$('fmtBar').addEventListener('pointerdown', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  e.preventDefault(); // 편집기의 선택 영역 유지
+  if (b.id === 'fsDown') { fontSize = Math.max(FS_MIN, fontSize - 1); applyFont(); }
+  else if (b.id === 'fsUp') { fontSize = Math.min(FS_MAX, fontSize + 1); applyFont(); }
+  else applyFormat(b);
+});
+$('fmtBar').addEventListener('click', e => e.preventDefault());
 applyFont();
 
 /* ---------- 동작 ---------- */
@@ -764,7 +900,7 @@ async function newNote() {
   const lock = folderLocked(folderId);
   if (lock && !(await ensureKey())) return;
   const n = { id: newId(), body: '', folderId, pinned: false, trashed: false, trashedAt: 0, createdAt: Date.now(), locked: lock, enc: null };
-  if (lock) vault.plain[n.id] = { iv: null, text: '' };
+  if (lock) vault.plain[n.id] = { iv: null, text: '', html: '' };
   put('notes', n);
   ui.q = ''; $('q').value = '';
   if (ui.view === 'trash') ui.view = 'all';
@@ -773,20 +909,31 @@ async function newNote() {
 }
 
 let savedTimer;
-$('ed').addEventListener('input', () => {
+function onEdInput() {
   const n = data.notes[ui.noteId];
   if (!n || n.trashed) return;
-  const v = $('ed').value;
+  const ed = $('ed'), html = ed.innerHTML, text = walkText(ed);
+  edSrc = html; edNote = n.id;
   if (n.locked) {
     if (!vault.key) return;
-    vault.plain[n.id] = { iv: vault.plain[n.id] ? vault.plain[n.id].iv : null, text: v };
+    vault.plain[n.id] = { iv: vault.plain[n.id] ? vault.plain[n.id].iv : null, text, html };
     vault.schedule(n.id);
-  } else { n.body = v; put('notes', n, { debounce: true }); }
+  } else { n.body = text; n.html = html; put('notes', n, { debounce: true }); }
+  updateEmpty();
   renderHL(false);
   $('saved').textContent = '저장 중…';
   clearTimeout(savedTimer);
   savedTimer = setTimeout(() => { $('saved').textContent = n.locked ? '암호화 저장됨' : '저장됨'; renderList(); }, 600);
+}
+$('ed').addEventListener('input', onEdInput);
+$('ed').addEventListener('paste', e => { // 붙여넣기는 글자만 (다른 곳의 서식·위험한 코드 차단)
+  const t = e.clipboardData && e.clipboardData.getData('text/plain');
+  if (t == null) return;
+  e.preventDefault();
+  document.execCommand('insertText', false, t);
 });
+$('ed').addEventListener('drop', e => e.preventDefault());
+try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch (e) {}
 
 $('folderSel').addEventListener('change', async e => {
   const n = data.notes[ui.noteId]; if (!n) return;
