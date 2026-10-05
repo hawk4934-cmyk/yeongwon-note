@@ -96,6 +96,17 @@ dialog select{width:100%;padding:9px 10px;border:1px solid var(--line);border-ra
 .notes{overflow-x:hidden}
 .pin{color:var(--accent);font-size:12px;margin-right:4px}
 .empty{padding:48px 24px;text-align:center;color:var(--muted);font-size:14px}
+.note-item{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.note-item.selmode{padding-left:46px}
+.chk{position:absolute;left:16px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:6px;border:2px solid var(--faint);background:var(--surface)}
+.chk.on{background:var(--accent);border-color:var(--accent)}
+.chk.on::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.sel-bar{position:absolute;left:10px;right:10px;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:4px;background:var(--ink);color:var(--bg);border-radius:14px;padding:6px 8px;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:3}
+.sel-bar button{padding:9px 10px;border-radius:9px;font-size:14px;font-weight:600;color:var(--bg);white-space:nowrap}
+.sel-bar button:disabled{opacity:.35}
+.sel-bar .grow{flex:1;text-align:center;font-size:14px;white-space:nowrap}
+.sel-bar .warn{color:#FF8A80}
+#selStart{flex:none;font-size:14px}
 .fab{position:absolute;right:20px;bottom:calc(20px + env(safe-area-inset-bottom,0px));width:54px;height:54px;border-radius:50%;background:var(--accent);color:#fff;font-size:28px;line-height:1;display:grid;place-items:center;box-shadow:0 4px 14px rgba(30,60,100,.28)}
 .list{position:relative}
 .trash-bar{margin:0 16px 10px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
@@ -220,11 +231,20 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
     <div class="list-head">
       <button class="icon-btn menu-btn" id="menuBtn" aria-label="폴더 열기">☰</button>
       <div class="list-title" id="listTitle">전체 메모</div>
+      <button class="link" id="selStart">선택</button>
     </div>
     <div class="search"><input type="search" id="q" placeholder="메모 검색" autocomplete="off"></div>
     <div class="trash-bar hidden" id="trashBar"><span>30일이 지나면 자동으로 지워집니다</span><button class="link" id="emptyTrash">비우기</button></div>
     <div class="notes" id="notes"></div>
     <button class="fab" id="newBtn" aria-label="새 메모">+</button>
+    <div class="sel-bar hidden" id="selBar">
+      <button id="selAll">전체</button>
+      <span class="grow" id="selCount">0개 선택</span>
+      <button id="selMove">이동</button>
+      <button id="selRestore" class="hidden">복원</button>
+      <button id="selDel" class="warn">삭제</button>
+      <button id="selCancel">취소</button>
+    </div>
   </section>
 
   <main class="editor" id="editor">
@@ -304,6 +324,16 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
   <div class="dlg-actions">
     <button class="btn" id="vCancel">취소</button>
     <button class="btn primary" id="vOk">확인</button>
+  </div>
+</dialog>
+
+<dialog id="moveDlg">
+  <h3 id="moveTitle">메모 옮기기</h3>
+  <label for="moveTo">옮길 곳</label>
+  <select id="moveTo"></select>
+  <div class="dlg-actions">
+    <button class="btn" id="moveCancel">취소</button>
+    <button class="btn primary" id="moveGo">옮기기</button>
   </div>
 </dialog>
 
@@ -765,7 +795,7 @@ function renderList() {
   $('listTitle').textContent = viewName();
   $('trashBar').classList.toggle('hidden', ui.view !== 'trash');
   const sealedFolder = folderLocked(ui.view) && !vault.key;
-  $('newBtn').classList.toggle('hidden', ui.view === 'trash' || sealedFolder);
+  $('newBtn').classList.toggle('hidden', ui.view === 'trash' || sealedFolder || selMode);
   if (sealedFolder) {
     $('notes').innerHTML = `<div class="empty">🔒 잠긴 폴더입니다<br><button class="btn primary" data-unlock>잠금 해제</button></div>`;
     return;
@@ -790,7 +820,7 @@ function renderList() {
     const f = data.folders[n.folderId];
     const tab = f && !f.deleted ? f.color : 'transparent';
     const sealed = textOf(n) === null;
-    return `<button class="note-item ${n.id === ui.noteId ? 'on' : ''} ${sealed ? 'sealed' : ''}" data-id="${n.id}" style="--tab:${tab}">
+    return `<button class="note-item ${n.id === ui.noteId && !selMode ? 'on' : ''} ${sealed ? 'sealed' : ''} ${selMode ? 'selmode' : ''}" data-id="${n.id}" style="--tab:${tab}">${selMode ? `<span class="chk ${selected.has(n.id) ? 'on' : ''}"></span>` : ''}
       <div class="note-title">${n.pinned && !n.trashed ? '<span class="pin">●</span>' : ''}${n.locked ? '<span class="lockmark">🔒</span>' : ''}<span class="tt">${hlHtml(titleOf(n), sealed ? null : re)}</span>${re && hitCounts[n.id] ? `<span class="hitcount">${hitCounts[n.id]}회</span>` : ''}</div>
       <div class="note-meta"><time>${fmtDate(ui.view === 'trash' ? n.trashedAt : n.updatedAt)}</time><span>${(() => { const sn = snippetOf(n, re); return sn ? hlHtml(sn, re) : esc(previewOf(n)); })()}</span></div>
     </button>`;
@@ -1053,6 +1083,7 @@ $('nav').addEventListener('click', e => {
   if (tg) { const id = tg.dataset.tog; collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id); saveCollapsed(); renderNav(); return; }
   const it = e.target.closest('[data-view]');
   if (!it) return;
+  if (selMode) exitSel();
   ui.view = it.dataset.view; ui.noteId = null;
   document.body.classList.remove('drawer');
   renderAll();
@@ -1060,9 +1091,114 @@ $('nav').addEventListener('click', e => {
 $('notes').addEventListener('click', async e => {
   if (e.target.closest('[data-unlock]')) { if (await ensureKey()) renderAll(); return; }
   const go = e.target.closest('[data-goto]');
-  if (go) { ui.view = go.dataset.goto; ui.noteId = null; ancestors(ui.view).forEach(a => collapsed.delete(a)); saveCollapsed(); renderAll(); return; }
-  const it = e.target.closest('[data-id]'); if (it) openNote(it.dataset.id);
+  if (go) { if (selMode) exitSel(); ui.view = go.dataset.goto; ui.noteId = null; ancestors(ui.view).forEach(a => collapsed.delete(a)); saveCollapsed(); renderAll(); return; }
+  const it = e.target.closest('[data-id]'); if (!it) return;
+  if (suppressClick) { suppressClick = false; return; }
+  if (selMode) { toggleSel(it.dataset.id); return; }
+  openNote(it.dataset.id);
 });
+
+/* ---------- 여러 메모 선택 (길게 누르기) → 이동 / 삭제 ---------- */
+let selMode = false, selected = new Set(), selPushed = false, pressTimer = null, pressStart = null, suppressClick = false;
+function enterSel(firstId) {
+  if (selMode) return;
+  selMode = true; selected = new Set(firstId ? [firstId] : []);
+  if (isPhone()) { history.pushState({ sel: true }, ''); selPushed = true; }
+  renderSel();
+}
+function exitSel(fromPop) {
+  if (!selMode) return;
+  selMode = false; selected.clear();
+  if (selPushed && !fromPop) { selPushed = false; history.back(); }
+  selPushed = false;
+  renderSel();
+}
+function toggleSel(id) { selected.has(id) ? selected.delete(id) : selected.add(id); renderSel(); }
+function renderSel() {
+  const trash = ui.view === 'trash';
+  // 화면에 없는 메모(검색어 변경 등)는 선택에서 뺌
+  const visible = new Set(viewNotes().map(n => n.id));
+  [...selected].forEach(id => { if (!visible.has(id)) selected.delete(id); });
+  $('selBar').classList.toggle('hidden', !selMode);
+  $('selStart').textContent = selMode ? '완료' : '선택';
+  $('selCount').textContent = `${selected.size}개 선택`;
+  $('selMove').classList.toggle('hidden', trash);
+  $('selRestore').classList.toggle('hidden', !trash);
+  $('selDel').textContent = trash ? '영구 삭제' : '삭제';
+  ['selMove', 'selRestore', 'selDel'].forEach(id => $(id).disabled = !selected.size);
+  $('selAll').textContent = selected.size && selected.size === visible.size ? '해제' : '전체';
+  renderList();
+  if (selMode) $('newBtn').classList.add('hidden');
+}
+const noteEl = e => e.target.closest('#notes .note-item');
+$('notes').addEventListener('pointerdown', e => {
+  suppressClick = false;
+  const it = noteEl(e); if (!it || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  pressStart = [e.clientX, e.clientY];
+  clearTimeout(pressTimer);
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    if (!selMode) { enterSel(it.dataset.id); suppressClick = true; if (navigator.vibrate) navigator.vibrate(25); }
+  }, 500);
+});
+const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; };
+$('notes').addEventListener('pointermove', e => { if (pressTimer && pressStart && Math.hypot(e.clientX - pressStart[0], e.clientY - pressStart[1]) > 10) cancelPress(); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('notes').addEventListener(ev, cancelPress));
+$('notes').addEventListener('contextmenu', e => { if (noteEl(e)) e.preventDefault(); });
+$('selStart').onclick = () => selMode ? exitSel() : enterSel(null);
+$('selCancel').onclick = () => exitSel();
+$('selAll').onclick = () => {
+  const ids = viewNotes().map(n => n.id);
+  selected = selected.size === ids.length ? new Set() : new Set(ids);
+  renderSel();
+};
+$('selDel').onclick = () => {
+  const notes = [...selected].map(id => data.notes[id]).filter(n => n && !n.deleted);
+  if (!notes.length) return;
+  if (ui.view === 'trash') {
+    if (!confirm(`메모 ${notes.length}개를 영구 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    notes.forEach(discard);
+  } else {
+    if (!confirm(`메모 ${notes.length}개를 휴지통으로 옮길까요?`)) return;
+    notes.forEach(n => { if (isEmpty(n)) discard(n); else { n.trashed = true; n.trashedAt = Date.now(); put('notes', n); } });
+    toast(`메모 ${notes.length}개를 휴지통으로 옮겼습니다`);
+  }
+  if (selected.has(ui.noteId)) ui.noteId = null;
+  exitSel(); renderAll();
+};
+$('selRestore').onclick = () => {
+  const notes = [...selected].map(id => data.notes[id]).filter(n => n && !n.deleted);
+  notes.forEach(n => { n.trashed = false; n.trashedAt = 0; if (n.folderId && !fAlive(n.folderId)) n.folderId = null; put('notes', n); });
+  toast(`메모 ${notes.length}개를 복원했습니다`);
+  if (selected.has(ui.noteId)) ui.noteId = null;
+  exitSel(); renderAll();
+};
+$('selMove').onclick = () => {
+  if (!selected.size) return;
+  $('moveTitle').textContent = `메모 ${selected.size}개 옮기기`;
+  $('moveTo').innerHTML = `<option value="">폴더 없음</option>` + folderTree().map(({ f, depth }) => `<option value="${f.id}">${'\u00A0\u00A0'.repeat(depth)}${depth ? '└ ' : ''}${folderLocked(f.id) ? '🔒 ' : ''}${esc(f.name)}</option>`).join('');
+  $('moveTo').value = fAlive(ui.view) ? ui.view : '';
+  $('moveDlg').showModal();
+};
+$('moveCancel').onclick = () => $('moveDlg').close();
+$('moveGo').onclick = async () => {
+  const to = $('moveTo').value || null;
+  const notes = [...selected].map(id => data.notes[id]).filter(n => n && !n.deleted);
+  const needLock = folderLocked(to) ? notes.filter(n => !n.locked) : [];
+  if (needLock.length && !(await ensureKey())) return;
+  $('moveGo').disabled = true;
+  try {
+    for (const n of notes) {
+      n.folderId = to;
+      if (needLock.includes(n)) await lockNote(n); else put('notes', n);
+    }
+  } finally { $('moveGo').disabled = false; }
+  $('moveDlg').close();
+  const name = to ? data.folders[to].name : '폴더 없음';
+  toast(`메모 ${notes.length}개를 '${name}'(으)로 옮겼습니다` + (needLock.length ? ' (암호화됨)' : ''));
+  exitSel(); renderAll();
+};
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && selMode && !document.querySelector('dialog[open]')) exitSel(); });
 $('newBtn').onclick = newNote;
 $('q').addEventListener('input', e => { ui.q = e.target.value; renderList(); renderHL(true); });
 $('q').addEventListener('keydown', e => { // 엔터: 첫 번째 결과 열기
@@ -1073,7 +1209,10 @@ $('q').addEventListener('keydown', e => { // 엔터: 첫 번째 결과 열기
 $('menuBtn').onclick = () => document.body.classList.add('drawer');
 $('scrim').onclick = () => document.body.classList.remove('drawer');
 $('backBtn').onclick = () => history.back();
-window.addEventListener('popstate', () => { if (document.body.classList.contains('editing')) closeEditor(); });
+window.addEventListener('popstate', () => {
+  if (document.body.classList.contains('editing')) closeEditor();
+  else if (selMode) exitSel(true);
+});
 document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); newNote(); } });
 
 /* ---------- 폴더 편집 ---------- */
