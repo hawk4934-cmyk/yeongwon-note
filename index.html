@@ -55,6 +55,17 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .folder-row .edit{opacity:0}
 .folder-row:hover .edit,.folder-row .nav-item.on + .edit{opacity:1}
 @media (hover:none){.folder-row .edit{opacity:1}}
+.tog{width:20px;height:24px;flex:none;color:var(--faint);font-size:11px;display:inline-grid;place-items:center;border-radius:4px}
+.tog:hover{color:var(--ink);background:rgba(127,140,160,.15)}
+.tog-sp{width:20px;flex:none}
+.sub-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px 10px 16px;border-radius:10px;font-weight:600;font-size:calc(var(--ed-size,17px) * .88);text-align:left}
+.sub-item:hover{background:rgba(127,140,160,.10)}
+.sub-item .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub-item .count{margin-left:auto;color:var(--faint);font-weight:400;font-size:13px;flex:none}
+.sub-item .arrow{color:var(--faint);flex:none}
+.sub-sep{height:1px;background:var(--line);margin:6px 10px 8px}
+dialog select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);font-size:15px}
+.hint{font-size:12px;color:var(--muted);margin:4px 0 0 26px}
 .side-foot{border-top:1px solid var(--line);padding:10px 14px 14px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:8px}
 .sync{display:flex;align-items:center;gap:8px}
 .sync i{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
@@ -113,6 +124,8 @@ mark{background:var(--hl);color:inherit;border-radius:2px}
 #ed.empty::before{content:attr(data-ph);color:var(--faint);pointer-events:none;position:absolute}
 #ed[contenteditable="false"]{color:var(--muted)}
 #ed [style*="background-color"]{color:#1F2633;border-radius:2px}
+#ed [style*="background-color"] [style*="--ink"],#ed [style*="background-color"][style*="--ink"]{color:#1F2633!important}
+.sw-default{background:var(--ink);box-shadow:inset 0 0 0 3px var(--surface)}
 #ed b,#ed strong{font-weight:700}
 mark{background:var(--hl);color:inherit;border-radius:2px}
 ::highlight(hl){background-color:var(--hl);text-decoration:underline 2px var(--hl-cur)}
@@ -230,6 +243,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
     </div>
     <div class="fmt-bar hidden" id="fmtBar">
       <div class="fmt-group"><span class="fmt-label">글자색</span>
+        <button class="sw sw-default" data-fore="default" aria-label="기본 글자색(검정)" title="기본 글자색"></button>
         <button class="sw" data-fore="#E5484D" style="background:#E5484D" aria-label="빨강 글자"></button>
         <button class="sw" data-fore="#E8820C" style="background:#E8820C" aria-label="주황 글자"></button>
         <button class="sw" data-fore="#2E9E5B" style="background:#2E9E5B" aria-label="초록 글자"></button>
@@ -269,7 +283,10 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
   <input type="text" id="folderName" maxlength="30">
   <label>색</label>
   <div class="swatches" id="swatches"></div>
-  <label class="check"><input type="checkbox" id="folderLock"> 🔒 이 폴더 잠그기 (안의 메모를 모두 암호화)</label>
+  <label for="folderParent">위치</label>
+  <select id="folderParent"></select>
+  <label class="check"><input type="checkbox" id="folderLock"> 🔒 이 폴더 잠그기 (하위 폴더까지 메모를 모두 암호화)</label>
+  <div class="hint hidden" id="folderLockHint">상위 폴더가 잠겨 있어 이 폴더도 자동으로 잠겨 있습니다.</div>
   <div class="dlg-actions">
     <button class="btn danger left hidden" id="folderDel">폴더 삭제</button>
     <button class="btn" id="folderCancel">취소</button>
@@ -497,7 +514,30 @@ function htmlOf(n) {
   return p ? (p.html != null ? p.html : textToHtml(p.text)) : '';
 }
 const isEmpty = n => { const t = textOf(n); return t !== null && !t.trim(); };
-const folderLocked = fid => { const f = data.folders[fid]; return !!(f && !f.deleted && f.locked); };
+/* ---------- 폴더 안의 폴더 (parentId로 연결) ---------- */
+const fAlive = id => { const f = id && data.folders[id]; return f && !f.deleted ? f : null; };
+const parentOf = f => (f.parentId && f.parentId !== f.id && fAlive(f.parentId)) ? f.parentId : null;
+const sortFolders = arr => arr.sort((a, b) => ((a.order || 0) - (b.order || 0)) || (a.createdAt - b.createdAt));
+const childrenOf = pid => sortFolders(Object.values(data.folders).filter(f => !f.deleted && parentOf(f) === pid));
+function ancestors(fid) { // 가까운 상위 폴더부터
+  const out = []; let cur = fAlive(fid);
+  while (cur && out.length < 50) { const p = parentOf(cur); if (!p || out.includes(p) || p === fid) break; out.push(p); cur = fAlive(p); }
+  return out;
+}
+function descendants(fid) {
+  const out = [], stack = [fid];
+  while (stack.length && out.length < 5000) { const id = stack.pop(); childrenOf(id).forEach(c => { if (c.id !== fid && !out.includes(c.id)) { out.push(c.id); stack.push(c.id); } }); }
+  return out;
+}
+function folderTree() { // 화면에 그릴 순서: [{f, depth}]
+  const out = [], seen = new Set();
+  (function rec(pid, depth) { childrenOf(pid).forEach(f => { if (seen.has(f.id)) return; seen.add(f.id); out.push({ f, depth }); rec(f.id, depth + 1); }); })(null, 0);
+  Object.values(data.folders).forEach(f => { if (!f.deleted && !seen.has(f.id)) { seen.add(f.id); out.push({ f, depth: 0 }); } });
+  return out;
+}
+const folderPath = fid => [...ancestors(fid).reverse(), fid].map(id => data.folders[id].name).join(' › ');
+/* 이 폴더나 상위 폴더 중 하나라도 잠겨 있으면 잠긴 것으로 봄 */
+const folderLocked = fid => { const f = fAlive(fid); if (!f) return false; return !!f.locked || ancestors(fid).some(a => data.folders[a].locked); };
 
 async function lockNote(n) {
   const text = n.body || '', html = htmlOf(n);
@@ -689,10 +729,13 @@ function viewName() {
   if (ui.view === 'all') return '전체 메모';
   if (ui.view === 'unfiled') return '폴더 없음';
   if (ui.view === 'trash') return '휴지통';
-  const f = data.folders[ui.view];
-  return f ? (f.locked ? '🔒 ' : '') + f.name : '전체 메모';
+  const f = fAlive(ui.view);
+  return f ? (folderLocked(f.id) ? '🔒 ' : '') + folderPath(f.id) : '전체 메모';
 }
 
+let collapsed = new Set();
+try { collapsed = new Set(JSON.parse(localStorage.getItem('hangyeol.collapsed') || '[]')); } catch (e) {}
+const saveCollapsed = () => { try { localStorage.setItem('hangyeol.collapsed', JSON.stringify([...collapsed])); } catch (e) {} };
 function renderNav() {
   const notes = liveNotes(), active = notes.filter(n => !n.trashed);
   const cnt = fid => active.filter(n => n.folderId === fid).length;
@@ -703,8 +746,13 @@ function renderNav() {
   let h = item('all', '<span class="ico">≡</span>', '전체 메모', active.length);
   h += item('unfiled', '<span class="ico">○</span>', '폴더 없음', unfiled);
   h += `<div class="nav-group"><span>폴더</span><button class="icon-btn" id="addFolder" aria-label="새 폴더" title="새 폴더">+</button></div>`;
-  liveFolders().forEach(f => {
-    h += `<div class="folder-row">${item(f.id, `<span class="dot" style="background:${f.color}"></span>`, (f.locked ? '🔒 ' : '') + f.name, cnt(f.id))}
+  const total = fid => [fid, ...descendants(fid)].reduce((sum, id) => sum + cnt(id), 0);
+  const hiddenUnder = new Set();
+  folderTree().forEach(({ f, depth }) => {
+    if (ancestors(f.id).some(a => collapsed.has(a))) return; // 접힌 폴더의 하위는 숨김
+    const hasKids = childrenOf(f.id).length > 0;
+    const tog = hasKids ? `<button class="tog" data-tog="${f.id}" aria-label="${collapsed.has(f.id) ? '펼치기' : '접기'}">${collapsed.has(f.id) ? '▶' : '▼'}</button>` : '<span class="tog-sp"></span>';
+    h += `<div class="folder-row" style="padding-left:${Math.min(depth, 6) * 14}px">${tog}${item(f.id, `<span class="dot" style="background:${f.color}"></span>`, (f.locked ? '🔒 ' : '') + f.name, total(f.id))}
           <button class="icon-btn edit" data-edit="${f.id}" aria-label="${esc(f.name)} 폴더 편집">⋯</button></div>`;
   });
   h += `<div style="height:12px"></div>` + item('trash', '<span class="ico">🗑</span>', '휴지통', trash);
@@ -724,15 +772,21 @@ function renderList() {
   }
   const list = viewNotes();
   const re = termRegex();
+  const subs = !re && fAlive(ui.view) ? childrenOf(ui.view) : [];
+  const actives = liveNotes().filter(n => !n.trashed);
+  const subHtml = subs.map(f => {
+    const c = [f.id, ...descendants(f.id)].reduce((sum, id) => sum + actives.filter(n => n.folderId === id).length, 0);
+    return `<button class="sub-item" data-goto="${f.id}"><span class="dot" style="background:${f.color}"></span><span class="name">${f.locked ? '🔒 ' : ''}${esc(f.name)}</span><span class="count">${c || ''}</span><span class="arrow">›</span></button>`;
+  }).join('') + (subs.length ? '<div class="sub-sep"></div>' : '');
   if (re) {
     const total = list.reduce((sum, n) => sum + (hitCounts[n.id] || 0), 0);
     $('listTitle').textContent = `검색 결과 ${list.length}개 메모 · ${total}곳` + (ui.view === 'trash' ? ' (휴지통)' : '');
   }
   if (!list.length) {
-    $('notes').innerHTML = `<div class="empty">${ui.q ? '검색 결과가 없습니다' : ui.view === 'trash' ? '휴지통이 비어 있습니다' : '+ 버튼으로 첫 메모를 써 보세요'}</div>`;
+    $('notes').innerHTML = subHtml + `<div class="empty">${ui.q ? '검색 결과가 없습니다' : ui.view === 'trash' ? '휴지통이 비어 있습니다' : '+ 버튼으로 첫 메모를 써 보세요'}</div>`;
     return;
   }
-  $('notes').innerHTML = list.map(n => {
+  $('notes').innerHTML = subHtml + list.map(n => {
     const f = data.folders[n.folderId];
     const tab = f && !f.deleted ? f.color : 'transparent';
     const sealed = textOf(n) === null;
@@ -821,7 +875,7 @@ function renderEditor(jump) {
   $('edDate').textContent = fmtFull(n.updatedAt) + (n.locked ? ' · 🔒 암호화됨' : '');
   if (n.trashed) { $('restoreBtn').classList.remove('hidden'); $('purgeBtn').classList.remove('hidden'); return; }
   const sel = $('folderSel');
-  sel.innerHTML = `<option value="">폴더 없음</option>` + liveFolders().map(f => `<option value="${f.id}">${f.locked ? '🔒 ' : ''}${esc(f.name)}</option>`).join('');
+  sel.innerHTML = `<option value="">폴더 없음</option>` + folderTree().map(({ f, depth }) => `<option value="${f.id}">${'\u00A0\u00A0'.repeat(depth)}${depth ? '└ ' : ''}${f.locked ? '🔒 ' : ''}${esc(f.name)}</option>`).join('');
   sel.value = n.folderId && data.folders[n.folderId] && !data.folders[n.folderId].deleted ? n.folderId : '';
   ['folderSel', 'lockBtn', 'pinBtn', 'delBtn', 'saved'].forEach(id => $(id).classList.remove('hidden'));
   $('pinBtn').classList.toggle('on', !!n.pinned);
@@ -859,7 +913,14 @@ function applyFormat(btn) {
   if (!n || n.trashed || (n.locked && !vault.key)) return;
   restoreSel();
   try { document.execCommand('styleWithCSS', false, true); } catch (e) {}
-  if (btn.dataset.fore) document.execCommand('foreColor', false, btn.dataset.fore);
+  if (btn.dataset.fore === 'default') { // 기본색: 화면 모드에 맞는 기본 글자색(밝은 화면=검정, 어두운 화면=흰색)
+    document.execCommand('foreColor', false, '#010203');
+    $('ed').querySelectorAll('[style*="color"], font[color]').forEach(el => {
+      const c = (el.style.color || el.getAttribute('color') || '').replace(/\s/g, '').toLowerCase();
+      if (c === 'rgb(1,2,3)' || c === '#010203') { el.removeAttribute('color'); el.style.color = 'var(--ink)'; }
+    });
+  }
+  else if (btn.dataset.fore) document.execCommand('foreColor', false, btn.dataset.fore);
   else if (btn.dataset.hl) { if (!document.execCommand('hiliteColor', false, btn.dataset.hl)) document.execCommand('backColor', false, btn.dataset.hl); }
   else if (btn.dataset.cmd) document.execCommand(btn.dataset.cmd, false, null);
   onEdInput();
@@ -988,6 +1049,8 @@ $('nav').addEventListener('click', e => {
   const ed = e.target.closest('[data-edit]');
   if (ed) return openFolderDlg(ed.dataset.edit);
   if (e.target.closest('#addFolder')) return openFolderDlg(null);
+  const tg = e.target.closest('[data-tog]');
+  if (tg) { const id = tg.dataset.tog; collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id); saveCollapsed(); renderNav(); return; }
   const it = e.target.closest('[data-view]');
   if (!it) return;
   ui.view = it.dataset.view; ui.noteId = null;
@@ -996,6 +1059,8 @@ $('nav').addEventListener('click', e => {
 });
 $('notes').addEventListener('click', async e => {
   if (e.target.closest('[data-unlock]')) { if (await ensureKey()) renderAll(); return; }
+  const go = e.target.closest('[data-goto]');
+  if (go) { ui.view = go.dataset.goto; ui.noteId = null; ancestors(ui.view).forEach(a => collapsed.delete(a)); saveCollapsed(); renderAll(); return; }
   const it = e.target.closest('[data-id]'); if (it) openNote(it.dataset.id);
 });
 $('newBtn').onclick = newNote;
@@ -1018,13 +1083,28 @@ function openFolderDlg(id) {
   const f = id ? data.folders[id] : null;
   $('folderDlgTitle').textContent = f ? '폴더 편집' : '새 폴더';
   $('folderName').value = f ? f.name : '';
-  $('folderLock').checked = !!(f && f.locked);
   folderColor = f ? f.color : COLORS[liveFolders().length % COLORS.length];
+  const banned = f ? new Set([f.id, ...descendants(f.id)]) : new Set(); // 자기 자신이나 하위 폴더 안으로는 옮길 수 없음
+  const parent = f ? parentOf(f) : (fAlive(ui.view) ? ui.view : null);
+  $('folderParent').innerHTML = `<option value="">맨 위 (상위 폴더 없음)</option>` + folderTree().filter(({ f: x }) => !banned.has(x.id))
+    .map(({ f: x, depth }) => `<option value="${x.id}">${'\u00A0\u00A0'.repeat(depth)}${depth ? '└ ' : ''}${esc(x.name)} 안에</option>`).join('');
+  $('folderParent').value = parent || '';
+  $('folderLock').checked = !!(f && f.locked);
+  updateLockHint();
   $('folderDel').classList.toggle('hidden', !f);
   drawSwatches();
   $('folderDlg').showModal();
   setTimeout(() => $('folderName').focus(), 30);
 }
+function updateLockHint() {
+  const pid = $('folderParent').value || null;
+  const inherited = !!pid && folderLocked(pid);
+  $('folderLockHint').classList.toggle('hidden', !inherited);
+  $('folderLock').disabled = inherited;
+  if (inherited) $('folderLock').checked = true;
+  else if (folderEditing) $('folderLock').checked = !!(data.folders[folderEditing] || {}).locked;
+}
+$('folderParent').addEventListener('change', updateLockHint);
 function drawSwatches() {
   $('swatches').innerHTML = COLORS.map(c => `<button class="swatch ${c === folderColor ? 'on' : ''}" data-c="${c}" style="background:${c}" aria-label="색 ${c}"></button>`).join('');
 }
@@ -1033,34 +1113,47 @@ $('folderCancel').onclick = () => $('folderDlg').close();
 $('folderSave').onclick = async () => {
   const name = $('folderName').value.trim();
   if (!name) return $('folderName').focus();
-  const wantLock = $('folderLock').checked;
+  const parentId = $('folderParent').value || null;
+  const ownLock = $('folderLock').disabled ? !!(folderEditing && data.folders[folderEditing].locked) : $('folderLock').checked;
   const f = folderEditing ? data.folders[folderEditing] : null;
-  const wasLock = !!(f && f.locked);
-  const inside = f ? liveNotes().filter(n => n.folderId === f.id) : [];
-  if (wantLock !== wasLock) {
-    if (!wantLock && inside.some(n => n.locked) && !confirm(`폴더 잠금을 풀면 안에 있는 메모 ${inside.length}개의 암호화도 풀립니다. 계속할까요?`)) return;
-    if (!(await ensureKey())) return;
+  if (f) {
+    const subtree = new Set([f.id, ...descendants(f.id)]);
+    const inside = liveNotes().filter(n => subtree.has(n.folderId));
+    const wasEff = {}; inside.forEach(n => wasEff[n.id] = folderLocked(n.folderId));
+    const old = { name: f.name, color: f.color, locked: f.locked, parentId: f.parentId };
+    Object.assign(f, { name, color: folderColor, locked: ownLock, parentId });
+    const toLock = inside.filter(n => folderLocked(n.folderId) && !n.locked);
+    const toUnlock = inside.filter(n => !folderLocked(n.folderId) && wasEff[n.id] && n.locked);
+    if (toLock.length || toUnlock.length || ownLock !== !!old.locked) {
+      if (toUnlock.length && !confirm(`잠금을 풀면 메모 ${toUnlock.length}개의 암호화도 풀립니다. 계속할까요?`)) { Object.assign(f, old); return; }
+      if (!(await ensureKey())) { Object.assign(f, old); return; }
+    }
+    put('folders', f);
+    for (const n of toLock) await lockNote(n);
+    for (const n of toUnlock) await unlockNote(n);
+    if (toLock.length) toast(`메모 ${toLock.length}개를 암호화했습니다`);
+  } else {
+    if (ownLock && !(await ensureKey())) return;
+    const siblings = childrenOf(parentId);
+    const order = siblings.reduce((m, x) => Math.max(m, x.order || 0), 0) + 1;
+    put('folders', { id: newId(), name, color: folderColor, order, createdAt: Date.now(), locked: ownLock, parentId });
+    if (parentId) { ancestors(parentId).concat(parentId).forEach(a => collapsed.delete(a)); saveCollapsed(); }
   }
-  let folder;
-  if (f) { f.name = name; f.color = folderColor; f.locked = wantLock; put('folders', f); folder = f; }
-  else {
-    const order = liveFolders().reduce((m, x) => Math.max(m, x.order || 0), 0) + 1;
-    folder = { id: newId(), name, color: folderColor, order, createdAt: Date.now(), locked: wantLock };
-    put('folders', folder);
-  }
-  if (wantLock && !wasLock) { for (const n of inside) if (!n.locked) await lockNote(n); if (inside.length) toast(`메모 ${inside.length}개를 암호화했습니다`); }
-  if (!wantLock && wasLock) { for (const n of inside) if (n.locked) await unlockNote(n); }
   $('folderDlg').close(); renderAll();
 };
 $('folderName').addEventListener('keydown', e => { if (e.key === 'Enter') $('folderSave').click(); });
 $('folderDel').onclick = () => {
   const f = data.folders[folderEditing]; if (!f) return;
-  const inside = liveNotes().filter(n => n.folderId === f.id && !n.trashed);
-  const msg = inside.length ? `'${f.name}' 폴더를 삭제할까요?\n안에 있는 메모 ${inside.length}개는 휴지통으로 옮겨집니다.` : `'${f.name}' 폴더를 삭제할까요?`;
+  const subtree = [f.id, ...descendants(f.id)];
+  const inside = liveNotes().filter(n => subtree.includes(n.folderId) && !n.trashed);
+  const subCount = subtree.length - 1;
+  let msg = `'${f.name}' 폴더를 삭제할까요?`;
+  if (subCount) msg += `\n하위 폴더 ${subCount}개도 함께 삭제됩니다.`;
+  if (inside.length) msg += `\n안에 있는 메모 ${inside.length}개는 휴지통으로 옮겨집니다.`;
   if (!confirm(msg)) return;
   inside.forEach(n => { n.trashed = true; n.trashedAt = Date.now(); put('notes', n); });
-  put('folders', { id: f.id, deleted: true });
-  if (ui.view === f.id) ui.view = 'all';
+  subtree.forEach(id => put('folders', { id, deleted: true }));
+  if (subtree.includes(ui.view)) ui.view = 'all';
   ui.noteId = null; $('folderDlg').close(); renderAll();
 };
 
