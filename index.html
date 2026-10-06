@@ -231,7 +231,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <button class="link" id="importBtn">백업 불러오기</button>
         <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       </div>
-      <div class="app-ver">영원노트 버전 19 (사진 기능)</div>
+      <div class="app-ver">영원노트 버전 20 (사진 기능)</div>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -1238,7 +1238,10 @@ function onEdInput() {
 }
 $('ed').addEventListener('input', onEdInput);
 $('ed').addEventListener('paste', e => { // 캡처 붙여넣기는 사진으로, 글은 글자만 (다른 곳의 서식·위험한 코드 차단)
-  const files = e.clipboardData ? [...e.clipboardData.files].filter(f => f.type.startsWith('image/')) : [];
+  const cd = e.clipboardData;
+  let files = cd ? [...(cd.files || [])].filter(f => f.type.startsWith('image/')) : [];
+  if (!files.length && cd && cd.items) // 캡처 도구에 따라 files 대신 items로만 들어오는 경우
+    files = [...cd.items].filter(i => i.kind === 'file' && i.type.startsWith('image/')).map(i => i.getAsFile()).filter(Boolean);
   if (files.length) { e.preventDefault(); addImages(files); return; }
   const t = e.clipboardData && e.clipboardData.getData('text/plain');
   if (t == null) return;
