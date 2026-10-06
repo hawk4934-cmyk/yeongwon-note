@@ -1,21 +1,21 @@
-// 앱을 수정해서 다시 올릴 때마다 버전 숫자를 올려주세요 (예: v2, v3)
-const CACHE = 'hangyeol-v18';
+// 앱을 수정해서 다시 올릴 때마다 버전 숫자를 올려주세요
+const CACHE = 'hangyeol-v19';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))));
   self.skipWaiting();
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))));
   self.clients.claim();
 });
-// 온라인이면 최신 파일, 오프라인이면 저장해둔 파일 사용
+// 온라인이면 항상 서버에 최신인지 확인하고, 오프라인이면 저장해둔 파일 사용
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, { cache: 'no-cache' }).then(r => {
       const copy = r.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return r;

@@ -72,6 +72,7 @@ dialog select{width:100%;padding:9px 10px;border:1px solid var(--line);border-ra
 .sync.ok i{background:#4E9C63}.sync.busy i{background:#D99A2B}.sync.err i{background:var(--danger)}
 .foot-links{display:flex;flex-wrap:wrap;gap:4px 12px}
 .link{color:var(--accent);font-size:13px}
+.app-ver{font-size:11px;color:var(--faint)}
 
 /* 목록 */
 .list{background:var(--bg);display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
@@ -230,6 +231,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <button class="link" id="importBtn">백업 불러오기</button>
         <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       </div>
+      <div class="app-ver">영원노트 버전 19 (사진 기능)</div>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -1701,7 +1703,11 @@ $('loginGo').onclick = async () => {
   renderAll();
   initCloud();
 })();
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => {});
+  let reloaded = false; // 새 버전이 설치되면 한 번 새로고침해서 바로 적용
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; store.flush().then(() => location.reload()); } });
+}
 </script>
 </body>
 </html>
