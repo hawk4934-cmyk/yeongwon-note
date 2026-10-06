@@ -139,6 +139,13 @@ mark{background:var(--hl);color:inherit;border-radius:2px}
 .sw-default{background:var(--ink);box-shadow:inset 0 0 0 3px var(--surface)}
 #ed b,#ed strong{font-weight:700}
 mark{background:var(--hl);color:inherit;border-radius:2px}
+#ed img{display:block;max-width:100%;height:auto;margin:10px 0;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;min-width:60px;min-height:40px;background:var(--bg)}
+.img-view{position:fixed;inset:0;z-index:70;background:rgba(10,12,16,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(12px + env(safe-area-inset-bottom,0px))}
+.img-view img{max-width:100%;max-height:calc(100% - 70px);object-fit:contain;border-radius:6px}
+.img-view .bar{display:flex;gap:10px}
+.img-view .btn{background:#2A313C;border-color:#3A4250;color:#E6E9EE}
+.img-view .btn.danger{color:#FF8A80}
+.imgmark{font-size:12px;margin-right:4px;opacity:.75}
 ::highlight(hl){background-color:var(--hl);text-decoration:underline 2px var(--hl-cur)}
 ::highlight(hlcur){background-color:var(--hl-cur);text-decoration:underline 2px var(--hl-cur)}
 .hits{display:flex;align-items:center;gap:2px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -262,6 +269,10 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
       <button class="btn danger hidden" id="purgeBtn">영구 삭제</button>
     </div>
     <div class="fmt-bar hidden" id="fmtBar">
+      <div class="fmt-group">
+        <label class="fmt-btn" id="imgBtn" for="imgFile" role="button" aria-label="사진·캡처 넣기" style="display:inline-flex;align-items:center;cursor:pointer">📷 사진</label>
+        <input type="file" id="imgFile" accept="image/*" multiple style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden" tabindex="-1" aria-hidden="true">
+      </div>
       <div class="fmt-group"><span class="fmt-label">글자색</span>
         <button class="sw sw-default" data-fore="default" aria-label="기본 글자색(검정)" title="기본 글자색"></button>
         <button class="sw" data-fore="#E5484D" style="background:#E5484D" aria-label="빨강 글자"></button>
@@ -351,6 +362,14 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
   </div>
 </dialog>
 
+<div class="img-view hidden" id="imgView">
+  <img id="imgViewImg" alt="">
+  <div class="bar">
+    <button class="btn danger" id="imgDel">이 사진 지우기</button>
+    <button class="btn" id="imgClose">닫기</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -375,7 +394,9 @@ const COLORS = ['#E06C5A','#E3A33B','#5BAA6B','#3E9CA8','#4A78C9','#8A63C7','#C7
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-const emptyData = () => ({ folders: {}, notes: {}, meta: {} });
+const DATA_KINDS = ['folders', 'notes', 'meta', 'images'];
+const emptyData = () => ({ folders: {}, notes: {}, meta: {}, images: {} });
+let imgPlain = {}; // 잠긴 메모의 사진을 풀어 둔 것 (메모리에만)
 
 let data = emptyData();
 let ui = { view: 'all', noteId: null, q: '' };
@@ -392,21 +413,103 @@ try {
   if (last) lsKey = LS_KEY + ':' + last;
 } catch (e) {}
 
-function loadLocal() {
-  try {
-    const raw = localStorage.getItem(lsKey);
-    if (raw) { const d = JSON.parse(raw); data.folders = d.folders || {}; data.notes = d.notes || {}; data.meta = d.meta || {}; }
-  } catch (e) { console.warn(e); }
+/* ================================================================
+   기기 저장소: IndexedDB (기기 여유 공간만큼 저장 가능)
+   메모 하나하나를 [계정, 종류, id] 열쇠로 따로 저장해서, 고친 메모만 다시 씁니다.
+   IndexedDB를 쓸 수 없는 환경에서는 예전처럼 localStorage(약 5MB)를 씁니다.
+   ================================================================ */
+const store = {
+  db: null, ok: false, q: new Map(), t: null,
+  async open() {
+    if (!window.indexedDB) return;
+    try {
+      this.db = await new Promise((res, rej) => {
+        const r = indexedDB.open('yeongwon-note', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('items');
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+        r.onblocked = () => rej(new Error('blocked'));
+      });
+      this.ok = true;
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+    } catch (e) { console.warn('IndexedDB를 쓸 수 없어 localStorage를 씁니다', e); }
+  },
+  range: acct => IDBKeyRange.bound([acct, ''], [acct, '\uffff']),
+  readAll(acct) {
+    return new Promise((res, rej) => {
+      const r = this.db.transaction('items').objectStore('items').getAll(this.range(acct));
+      r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error);
+    });
+  },
+  writeMany(acct, entries, clearFirst) {
+    return new Promise((res, rej) => {
+      const tx = this.db.transaction('items', 'readwrite'), st = tx.objectStore('items');
+      if (clearFirst) st.delete(this.range(acct));
+      entries.forEach(([kind, obj]) => st.put({ kind, obj }, [acct, kind, obj.id]));
+      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  },
+  clear(acct) { return this.writeMany(acct, [], true); },
+  queue(acct, kind, obj) {
+    this.q.set(acct + '\u0000' + kind + '\u0000' + obj.id, [acct, kind, obj]);
+    clearTimeout(this.t); this.t = setTimeout(() => this.flush(), 150);
+  },
+  async flush() {
+    clearTimeout(this.t);
+    if (!this.q.size) return;
+    const groups = {};
+    this.q.forEach(([acct, kind, obj]) => (groups[acct] = groups[acct] || []).push([kind, obj]));
+    this.q.clear();
+    for (const acct in groups) {
+      try { await this.writeMany(acct, groups[acct]); }
+      catch (e) { console.warn(e); toast('기기 저장 공간이 부족합니다. 백업을 내보내 주세요.'); }
+    }
+  }
+};
+const entriesOf = d => DATA_KINDS.flatMap(k => Object.values(d[k] || {}).map(o => [k, o]));
+function fillData(target, d) { DATA_KINDS.forEach(k => target[k] = d[k] || {}); }
+
+/* 한 계정의 저장 내용 읽기 (예전 localStorage 데이터가 있으면 IndexedDB로 옮김) */
+async function readAccount(acct) {
+  const d = emptyData();
+  let legacy = null;
+  try { legacy = localStorage.getItem(acct); } catch (e) {}
+  if (store.ok) {
+    let rows = [];
+    try { rows = await store.readAll(acct); } catch (e) { console.warn(e); }
+    rows.forEach(r => { if (d[r.kind] && r.obj && r.obj.id) d[r.kind][r.obj.id] = r.obj; });
+    if (legacy) {
+      try {
+        const old = JSON.parse(legacy), add = emptyData();
+        DATA_KINDS.forEach(k => Object.values(old[k] || {}).forEach(o => {
+          const cur = d[k][o.id];
+          if (!cur || (o.updatedAt || 0) > (cur.updatedAt || 0)) { d[k][o.id] = o; add[k][o.id] = o; }
+        }));
+        await store.writeMany(acct, entriesOf(add));
+        localStorage.removeItem(acct); // 옮기기 성공 후에만 지움
+      } catch (e) { console.warn('예전 데이터 옮기기 실패, 다음에 다시 시도', e); }
+    }
+  } else if (legacy) {
+    try { fillData(d, JSON.parse(legacy)); } catch (e) {}
+  }
+  return d;
 }
-function saveLocal() {
+async function loadLocal() { fillData(data, await readAccount(lsKey)); }
+function saveLocal() { // 여러 개를 한꺼번에 바꿨을 때 전체 저장
+  if (store.ok) { entriesOf(data).forEach(([k, o]) => store.queue(lsKey, k, o)); return; }
   try { localStorage.setItem(lsKey, JSON.stringify(data)); }
   catch (e) { toast('기기 저장 공간이 부족합니다. 백업을 내보내 주세요.'); }
 }
+function persist(kind, obj) { // 하나만 저장
+  if (store.ok) store.queue(lsKey, kind, obj); else saveLocal();
+}
+window.addEventListener('pagehide', () => store.flush());
+document.addEventListener('visibilitychange', () => { if (document.hidden) store.flush(); });
 
 function put(kind, obj, { debounce = false } = {}) {
   obj.updatedAt = Date.now();
   data[kind][obj.id] = obj;
-  saveLocal();
+  persist(kind, obj);
   cloud.push(kind, obj, debounce);
 }
 
@@ -476,7 +579,7 @@ const vault = {
     if (this.plain[id] && this.plain[id].html === html) { this.plain[id].iv = e.iv; delete this.pending[id]; }
   },
   async flush() { for (const id of Object.keys(this.pending)) await this.saveNow(id); },
-  reset() { Object.values(this.timers).forEach(clearTimeout); this.key = null; this.salt = null; this.plain = {}; this.timers = {}; this.pending = {}; },
+  reset() { Object.values(this.timers).forEach(clearTimeout); this.key = null; this.salt = null; this.plain = {}; this.timers = {}; this.pending = {}; imgPlain = {}; },
   async lock() { await this.flush(); this.reset(); renderAll(); }
 };
 
@@ -503,13 +606,19 @@ function walkText(root, onText) {
 function htmlToText(html) { const t = document.createElement('template'); t.innerHTML = html || ''; return walkText(t.content); }
 function textToHtml(text) { return (text || '').split('\n').map(l => l ? `<div>${esc(l)}</div>` : '<div><br></div>').join(''); }
 const ALLOWED_TAGS = /^(DIV|P|BR|SPAN|B|STRONG|I|EM|U|FONT)$/;
+const IMG_ID_RE = /^[a-z0-9]{6,40}$/;
 function sanitize(html) { // 저장된 본문을 화면에 넣기 전, 허용한 서식만 남김
   const t = document.createElement('template'); t.innerHTML = html || '';
   (function clean(node) {
     for (let c = node.firstChild; c; ) {
       const next = c.nextSibling;
       if (c.nodeType === 1) {
-        if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META|IMG|SVG|VIDEO|AUDIO|FORM|INPUT|TEXTAREA|BUTTON)$/.test(c.tagName)) { c.remove(); }
+        if (c.tagName === 'IMG') { // 사진은 영원노트 사진 번호(data-img)만 허용
+          const id = c.getAttribute('data-img');
+          [...c.attributes].forEach(a => c.removeAttribute(a.name));
+          if (id && IMG_ID_RE.test(id)) c.setAttribute('data-img', id); else c.remove();
+        }
+        else if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META|SVG|VIDEO|AUDIO|FORM|INPUT|TEXTAREA|BUTTON)$/.test(c.tagName)) { c.remove(); }
         else if (!ALLOWED_TAGS.test(c.tagName)) { clean(c); while (c.firstChild) node.insertBefore(c.firstChild, c); c.remove(); }
         else {
           const color = c.style.color || (c.tagName === 'FONT' ? c.getAttribute('color') : '');
@@ -543,7 +652,8 @@ function htmlOf(n) {
   const p = vault.plain[n.id];
   return p ? (p.html != null ? p.html : textToHtml(p.text)) : '';
 }
-const isEmpty = n => { const t = textOf(n); return t !== null && !t.trim(); };
+const hasImg = n => { const t = textOf(n); return t !== null && /data-img=/.test(htmlOf(n)); };
+const isEmpty = n => { const t = textOf(n); return t !== null && !t.trim() && !hasImg(n); };
 /* ---------- 폴더 안의 폴더 (parentId로 연결) ---------- */
 const fAlive = id => { const f = id && data.folders[id]; return f && !f.deleted ? f : null; };
 const parentOf = f => (f.parentId && f.parentId !== f.id && fAlive(f.parentId)) ? f.parentId : null;
@@ -575,6 +685,9 @@ async function lockNote(n) {
   n.locked = true; n.enc = e; n.body = ''; n.html = null;
   vault.plain[n.id] = { iv: e.iv, text, html };
   put('notes', n);
+  for (const im of imagesOf(n.id)) if (im.data) { // 사진도 암호화
+    const d = im.data; im.enc = await vault.enc(d); im.data = null; imgPlain[im.id] = d; put('images', im);
+  }
 }
 async function unlockNote(n) {
   if (vault.pending[n.id]) await vault.saveNow(n.id);
@@ -584,8 +697,12 @@ async function unlockNote(n) {
   n.locked = false; n.body = t; n.enc = null;
   delete vault.plain[n.id];
   put('notes', n);
+  for (const im of imagesOf(n.id)) if (im.enc) {
+    try { im.data = imgPlain[im.id] || await vault.dec(im.enc); im.enc = null; put('images', im); } catch (e) {}
+  }
   return true;
 }
+const imagesOf = noteId => Object.values(data.images).filter(i => !i.deleted && i.noteId === noteId);
 
 /* 잠금 비밀번호 대화상자 */
 let vaultResolve = null, vaultMode = 'unlock';
@@ -644,9 +761,15 @@ async function changeVaultPw(oldPw, newPw) {
     try { texts[n.id] = await vault.dec(n.enc, oldKey); }
     catch (e) { return '일부 잠긴 메모를 열 수 없어 변경을 멈췄습니다. 다른 기기의 동기화를 기다린 뒤 다시 해 보세요.'; }
   }
+  const lockedImgs = Object.values(data.images).filter(i => !i.deleted && i.enc), imgTexts = {};
+  for (const im of lockedImgs) {
+    try { imgTexts[im.id] = await vault.dec(im.enc, oldKey); }
+    catch (e) { return '일부 잠긴 사진을 열 수 없어 변경을 멈췄습니다. 다른 기기의 동기화를 기다린 뒤 다시 해 보세요.'; }
+  }
   const salt = b64e(crypto.getRandomValues(new Uint8Array(16))), iter = 250000;
   const newKey = await vault.derive(newPw, salt, iter);
   vault.reset();
+  for (const im of lockedImgs) { im.enc = await vault.enc(imgTexts[im.id], newKey); put('images', im); }
   for (const n of locked) {
     const e = await vault.enc(texts[n.id], newKey);
     n.enc = e; put('notes', n);
@@ -725,7 +848,7 @@ function fmtFull(t) { const d = new Date(t); return `${d.getFullYear()}년 ${d.g
 
 function purgeOldTrash() {
   const limit = Date.now() - TRASH_DAYS * 864e5;
-  liveNotes().forEach(n => { if (n.trashed && n.trashedAt < limit) put('notes', { id: n.id, deleted: true }); });
+  liveNotes().forEach(n => { if (n.trashed && n.trashedAt < limit) discard(n); });
 }
 
 /* ---------- 화면 그리기 ---------- */
@@ -821,7 +944,7 @@ function renderList() {
     const tab = f && !f.deleted ? f.color : 'transparent';
     const sealed = textOf(n) === null;
     return `<button class="note-item ${n.id === ui.noteId && !selMode ? 'on' : ''} ${sealed ? 'sealed' : ''} ${selMode ? 'selmode' : ''}" data-id="${n.id}" style="--tab:${tab}">${selMode ? `<span class="chk ${selected.has(n.id) ? 'on' : ''}"></span>` : ''}
-      <div class="note-title">${n.pinned && !n.trashed ? '<span class="pin">●</span>' : ''}${n.locked ? '<span class="lockmark">🔒</span>' : ''}<span class="tt">${hlHtml(titleOf(n), sealed ? null : re)}</span>${re && hitCounts[n.id] ? `<span class="hitcount">${hitCounts[n.id]}회</span>` : ''}</div>
+      <div class="note-title">${n.pinned && !n.trashed ? '<span class="pin">●</span>' : ''}${n.locked ? '<span class="lockmark">🔒</span>' : ''}${!sealed && hasImg(n) ? '<span class="imgmark">📷</span>' : ''}<span class="tt">${hlHtml(titleOf(n), sealed ? null : re)}</span>${re && hitCounts[n.id] ? `<span class="hitcount">${hitCounts[n.id]}회</span>` : ''}</div>
       <div class="note-meta"><time>${fmtDate(ui.view === 'trash' ? n.trashedAt : n.updatedAt)}</time><span>${(() => { const sn = snippetOf(n, re); return sn ? hlHtml(sn, re) : esc(previewOf(n)); })()}</span></div>
     </button>`;
   }).join('');
@@ -880,8 +1003,100 @@ function setEdContent(id, html) {
   edSrc = html; edNote = id;
   ed.scrollTop = 0;
   updateEmpty();
+  hydrateImages();
 }
-function updateEmpty() { const ed = $('ed'); ed.classList.toggle('empty', !walkText(ed).trim()); }
+function updateEmpty() { const ed = $('ed'); ed.classList.toggle('empty', !walkText(ed).trim() && !ed.querySelector('img')); }
+
+/* ---------- 사진·캡처 ---------- */
+async function imageSrc(id) {
+  const im = data.images[id];
+  if (!im || im.deleted) return null;
+  if (im.data) return im.data;
+  if (im.enc) {
+    if (imgPlain[id]) return imgPlain[id];
+    if (!vault.key) return null;
+    try { return imgPlain[id] = await vault.dec(im.enc); } catch (e) { return null; }
+  }
+  return null;
+}
+async function hydrateImages() { // 본문의 사진 자리에 실제 사진을 채움
+  for (const el of $('ed').querySelectorAll('img[data-img]')) {
+    const src = await imageSrc(el.getAttribute('data-img'));
+    if (src) { if (el.getAttribute('src') !== src) el.setAttribute('src', src); el.alt = ''; }
+    else el.alt = '사진을 불러오는 중…';
+  }
+}
+function htmlForSave(ed) { // 저장할 때는 사진 데이터 대신 사진 번호만 남김
+  const c = ed.cloneNode(true);
+  c.querySelectorAll('img').forEach(i => {
+    const id = i.getAttribute('data-img');
+    [...i.attributes].forEach(a => i.removeAttribute(a.name));
+    if (id && IMG_ID_RE.test(id)) i.setAttribute('data-img', id); else i.remove();
+  });
+  return c.innerHTML;
+}
+function loadImageEl(file) {
+  return new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => { URL.revokeObjectURL(u); res(im); }; im.onerror = e => { URL.revokeObjectURL(u); rej(e); }; im.src = u; });
+}
+async function compressImage(file) { // 폭 최대 1600px, 900KB 이하가 될 때까지 줄임
+  const src = await loadImageEl(file);
+  const W = src.naturalWidth, H = src.naturalHeight;
+  let maxSide = 1600, q = 0.82;
+  for (let i = 0; i < 8; i++) {
+    const sc = Math.min(1, maxSide / Math.max(W, H)), w = Math.max(1, Math.round(W * sc)), h = Math.max(1, Math.round(H * sc));
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(src, 0, 0, w, h);
+    let url = cv.toDataURL('image/webp', q);
+    if (!url.startsWith('data:image/webp')) url = cv.toDataURL('image/jpeg', q);
+    if (url.length <= 900000) return { url, w, h };
+    q -= 0.12; if (q < 0.5) { q = 0.78; maxSide = Math.round(maxSide * 0.75); }
+  }
+  throw new Error('too big');
+}
+async function addImages(files) {
+  const n = data.notes[ui.noteId];
+  if (!n || n.trashed || (n.locked && !vault.key)) return;
+  const list = [...files].filter(f => f && f.type && f.type.startsWith('image/'));
+  if (!list.length) return;
+  toast('사진을 줄이는 중…');
+  let added = 0, bytes = 0;
+  for (const f of list) {
+    let r;
+    try { r = await compressImage(f); } catch (e) { toast('사진을 처리하지 못했습니다'); continue; }
+    const id = newId();
+    const im = { id, noteId: n.id, w: r.w, h: r.h, createdAt: Date.now(), data: null, enc: null };
+    if (n.locked) { im.enc = await vault.enc(r.url); imgPlain[id] = r.url; } else im.data = r.url;
+    put('images', im);
+    restoreSel();
+    document.execCommand('insertHTML', false, `<img data-img="${id}" src="${r.url}"><br>`);
+    added++; bytes += Math.round(r.url.length * 0.75);
+  }
+  if (added) { onEdInput(); toast(`사진 ${added}장을 넣었습니다 (약 ${Math.max(1, Math.round(bytes / 1024))}KB)`); }
+}
+function gcImages(noteId) { // 본문에서 지운 사진 정리
+  const n = data.notes[noteId];
+  if (!n || n.deleted || textOf(n) === null) return;
+  const refs = new Set([...htmlOf(n).matchAll(/data-img="([^"]+)"/g)].map(m => m[1]));
+  imagesOf(noteId).forEach(im => { if (!refs.has(im.id)) put('images', { id: im.id, deleted: true }); });
+}
+let viewingImg = null;
+$('ed').addEventListener('click', e => {
+  const im = e.target.closest('img[data-img]'); if (!im || !im.getAttribute('src')) return;
+  viewingImg = im.getAttribute('data-img');
+  $('imgViewImg').src = im.getAttribute('src');
+  const n = data.notes[ui.noteId];
+  $('imgDel').classList.toggle('hidden', !n || !!n.trashed);
+  $('imgView').classList.remove('hidden');
+});
+$('imgClose').onclick = () => { $('imgView').classList.add('hidden'); viewingImg = null; };
+$('imgView').addEventListener('click', e => { if (e.target === $('imgView')) $('imgClose').click(); });
+$('imgDel').onclick = () => {
+  if (!viewingImg || !confirm('이 사진을 메모에서 지울까요?')) return;
+  $('ed').querySelectorAll(`img[data-img="${viewingImg}"]`).forEach(el => { const nx = el.nextSibling; if (nx && nx.nodeName === 'BR') nx.remove(); el.remove(); });
+  onEdInput();
+  $('imgClose').click();
+};
+$('imgFile').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; addImages(f); });
 
 function renderEditor(jump) {
   const n = ui.noteId && data.notes[ui.noteId];
@@ -962,16 +1177,19 @@ $('fmtBar').addEventListener('pointerdown', e => {
   else if (b.id === 'fsUp') { fontSize = Math.min(FS_MAX, fontSize + 1); applyFont(); }
   else applyFormat(b);
 });
-$('fmtBar').addEventListener('click', e => e.preventDefault());
+$('fmtBar').addEventListener('click', e => { if (e.target.closest('button')) e.preventDefault(); }); // 사진 선택 창(input)은 막지 않음
 applyFont();
 
 /* ---------- 동작 ---------- */
 const isPhone = () => matchMedia('(max-width:719px)').matches;
-const discard = n => put('notes', { id: n.id, deleted: true });
+const discard = n => {
+  imagesOf(n.id).forEach(im => put('images', { id: im.id, deleted: true }));
+  put('notes', { id: n.id, deleted: true });
+};
 
 function openNote(id) {
   const prev = data.notes[ui.noteId];
-  if (prev && prev.id !== id && !prev.trashed && !prev.deleted && isEmpty(prev)) discard(prev);
+  if (prev && prev.id !== id && !prev.trashed && !prev.deleted) { if (isEmpty(prev)) discard(prev); else gcImages(prev.id); }
   ui.noteId = id;
   renderList(); renderEditor(true);
   if (isPhone() && !document.body.classList.contains('editing')) {
@@ -982,7 +1200,7 @@ function openNote(id) {
 function closeEditor() {
   document.body.classList.remove('editing');
   const n = data.notes[ui.noteId];
-  if (n && !n.trashed && !n.deleted && isEmpty(n)) { discard(n); ui.noteId = null; }
+  if (n && !n.trashed && !n.deleted) { if (isEmpty(n)) { discard(n); ui.noteId = null; } else gcImages(n.id); }
   renderAll();
 }
 
@@ -1003,7 +1221,7 @@ let savedTimer;
 function onEdInput() {
   const n = data.notes[ui.noteId];
   if (!n || n.trashed) return;
-  const ed = $('ed'), html = ed.innerHTML, text = walkText(ed);
+  const ed = $('ed'), html = htmlForSave(ed), text = walkText(ed);
   edSrc = html; edNote = n.id;
   if (n.locked) {
     if (!vault.key) return;
@@ -1017,13 +1235,19 @@ function onEdInput() {
   savedTimer = setTimeout(() => { $('saved').textContent = n.locked ? '암호화 저장됨' : '저장됨'; renderList(); }, 600);
 }
 $('ed').addEventListener('input', onEdInput);
-$('ed').addEventListener('paste', e => { // 붙여넣기는 글자만 (다른 곳의 서식·위험한 코드 차단)
+$('ed').addEventListener('paste', e => { // 캡처 붙여넣기는 사진으로, 글은 글자만 (다른 곳의 서식·위험한 코드 차단)
+  const files = e.clipboardData ? [...e.clipboardData.files].filter(f => f.type.startsWith('image/')) : [];
+  if (files.length) { e.preventDefault(); addImages(files); return; }
   const t = e.clipboardData && e.clipboardData.getData('text/plain');
   if (t == null) return;
   e.preventDefault();
   document.execCommand('insertText', false, t);
 });
-$('ed').addEventListener('drop', e => e.preventDefault());
+$('ed').addEventListener('drop', e => {
+  e.preventDefault();
+  const files = e.dataTransfer ? [...e.dataTransfer.files].filter(f => f.type.startsWith('image/')) : [];
+  if (files.length) addImages(files);
+});
 try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch (e) {}
 
 $('folderSel').addEventListener('change', async e => {
@@ -1300,7 +1524,7 @@ $('folderDel').onclick = () => {
 $('exportBtn').onclick = async () => {
   if (vault.key) await vault.flush();
   const out = { app: 'hangyeol-note', version: 2, exportedAt: new Date().toISOString(),
-    folders: liveFolders(), notes: liveNotes(), vault: vault.cfg };
+    folders: liveFolders(), notes: liveNotes(), images: Object.values(data.images).filter(i => !i.deleted), vault: vault.cfg };
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
   const a = document.createElement('a'), d = new Date();
   a.href = URL.createObjectURL(blob);
@@ -1321,6 +1545,7 @@ $('importFile').onchange = async e => {
     }
     let added = 0;
     (d.folders || []).forEach(f => { const cur = data.folders[f.id]; if (!cur || cur.updatedAt < f.updatedAt) { data.folders[f.id] = f; cloud.push('folders', f); } });
+    (d.images || []).forEach(im => { const cur = data.images[im.id]; if (!cur || cur.updatedAt < im.updatedAt) { data.images[im.id] = im; cloud.push('images', im); } });
     (d.notes || []).forEach(n => { const cur = data.notes[n.id]; if (!cur || cur.updatedAt < n.updatedAt) { data.notes[n.id] = n; cloud.push('notes', n); added++; } });
     saveLocal(); await vault.refresh(); renderAll(); toast(`메모 ${added}개를 불러왔습니다` + note);
   } catch (err) { toast('영원노트 백업 파일이 아닙니다'); }
@@ -1332,7 +1557,7 @@ function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add
 function setSync(state, text) { const s = $('sync'); s.className = 'sync ' + state; s.querySelector('span').textContent = text; }
 
 /* ---------- Firebase 동기화 ---------- */
-const KINDS = ['folders', 'notes', 'meta'];
+const KINDS = DATA_KINDS;
 const cloud = {
   fs: null, user: null, unsubs: [], timers: {},
   col(kind) { return this.fs.collection('users').doc(this.user.uid).collection(kind); },
@@ -1356,7 +1581,7 @@ const cloud = {
         snap.docChanges().forEach(ch => {
           if (ch.type === 'removed') return;
           const r = ch.doc.data(), l = data[kind][ch.doc.id];
-          if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) { data[kind][ch.doc.id] = r; changed = true; }
+          if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) { data[kind][ch.doc.id] = r; persist(kind, r); changed = true; }
         });
         if (first && !snap.metadata.fromCache) {
           first = false;
@@ -1364,12 +1589,12 @@ const cloud = {
           Object.values(data[kind]).forEach(l => { const r = remote[l.id]; if (!r || (l.updatedAt || 0) > (r.updatedAt || 0)) this.push(kind, l); });
         }
         if (changed) {
-          saveLocal();
           if (vault.key && vault.cfg && vault.salt !== vault.cfg.salt) { vault.reset(); toast('잠금 비밀번호가 바뀌어 다시 잠겼습니다'); }
           await vault.refresh();
           const editing = document.activeElement === $('ed');
           renderNav(); renderList();
           if (!editing) renderEditor();
+          if (kind === 'images') hydrateImages();
         }
         if (snap.metadata.fromCache) setSync('busy', '오프라인 — 연결되면 동기화');
         else if (snap.metadata.hasPendingWrites) setSync('busy', '동기화 중…');
@@ -1382,28 +1607,34 @@ const cloud = {
 };
 
 /* 계정 전환: 각자 자기 메모만 보이도록 */
-function switchUser(uid) {
+let switchGen = 0;
+async function switchUser(uid) {
+  const gen = ++switchGen;
   cloud.stop();
   vault.reset();
+  await store.flush(); // 이전 계정의 저장 대기분을 먼저 기록
   lsKey = uid ? LS_KEY + ':' + uid : GUEST_KEY;
   try { uid ? localStorage.setItem(LAST_UID_KEY, uid) : localStorage.removeItem(LAST_UID_KEY); } catch (e) {}
-  data = emptyData();
-  loadLocal();
+  const loaded = await readAccount(lsKey);
+  if (gen !== switchGen) return false; // 그사이 다른 계정으로 바뀜
+  data = loaded;
   if (uid) {
-    let guest = null;
-    try { guest = JSON.parse(localStorage.getItem(GUEST_KEY) || 'null'); } catch (e) {}
-    const gNotes = guest ? Object.values(guest.notes || {}).filter(n => !n.deleted) : [];
+    const guest = await readAccount(GUEST_KEY);
+    if (gen !== switchGen) return false;
+    const gNotes = Object.values(guest.notes || {}).filter(n => !n.deleted);
     if (gNotes.length && confirm(`로그인 전에 이 기기에서 쓴 메모 ${gNotes.length}개가 있습니다.\n지금 로그인한 계정으로 옮길까요?\n(취소하면 옮기지 않고 그대로 둡니다)`)) {
       Object.assign(data.folders, guest.folders || {});
       Object.assign(data.notes, guest.notes || {});
       if (guest.meta && guest.meta.vault && !data.meta.vault) data.meta.vault = guest.meta.vault;
       saveLocal();
-      localStorage.removeItem(GUEST_KEY);
+      await store.flush();
+      try { if (store.ok) await store.clear(GUEST_KEY); localStorage.removeItem(GUEST_KEY); } catch (e) {}
     }
   }
   ui.noteId = null; ui.view = 'all';
   document.body.classList.remove('editing');
   renderAll();
+  return true;
 }
 
 function loadScript(src) {
@@ -1419,12 +1650,12 @@ async function initCloud() {
   firebase.initializeApp(FIREBASE_CONFIG);
   cloud.fs = firebase.firestore();
   try { await cloud.fs.enablePersistence({ synchronizeTabs: true }); } catch (e) {}
-  firebase.auth().onAuthStateChanged(u => {
+  firebase.auth().onAuthStateChanged(async u => {
     cloud.user = u;
     $('loginBtn').classList.toggle('hidden', !!u);
     $('logoutBtn').classList.toggle('hidden', !u);
-    if (u) { $('loginDlg').open && $('loginDlg').close(); switchUser(u.uid); cloud.start(); }
-    else { switchUser(null); setSync('', '로그인하면 기기 간 동기화'); $('pw').value = ''; $('loginDlg').showModal(); }
+    if (u) { $('loginDlg').open && $('loginDlg').close(); if (await switchUser(u.uid) && cloud.user === u) cloud.start(); }
+    else { await switchUser(null); setSync('', '로그인하면 기기 간 동기화'); $('pw').value = ''; if (!$('loginDlg').open) $('loginDlg').showModal(); }
   });
 }
 $('loginBtn').onclick = () => $('loginDlg').showModal();
@@ -1432,6 +1663,7 @@ $('loginLater').onclick = () => $('loginDlg').close();
 $('logoutBtn').onclick = async () => {
   if (!confirm('로그아웃할까요? 다시 로그인하면 메모가 그대로 보입니다.')) return;
   await vault.flush();
+  await store.flush();
   firebase.auth().signOut();
 };
 $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginGo').click(); });
@@ -1462,10 +1694,13 @@ $('loginGo').onclick = async () => {
 };
 
 /* ---------- 시작 ---------- */
-loadLocal();
-purgeOldTrash();
-renderAll();
-initCloud();
+(async () => {
+  await store.open();
+  await loadLocal();
+  purgeOldTrash();
+  renderAll();
+  initCloud();
+})();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
