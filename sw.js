@@ -1,5 +1,5 @@
 // 앱을 수정해서 다시 올릴 때마다 버전 숫자를 올려주세요
-const CACHE = 'hangyeol-v20';
+const CACHE = 'hangyeol-v21';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
