@@ -240,7 +240,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <button class="link" id="importBtn">백업 불러오기</button>
         <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       </div>
-      <div class="app-ver">영원노트 버전 21</div>
+      <div class="app-ver">영원노트 버전 22</div>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -309,7 +309,13 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <button class="fmt-btn" data-cmd="bold" aria-label="굵게"><b>B</b></button>
         <button class="fmt-btn" data-cmd="removeFormat" aria-label="서식 지우기">지우기</button>
       </div>
-      <div class="fmt-group fmt-size"><span class="fmt-label">크기</span>
+      <div class="fmt-group"><span class="fmt-label">선택 글자</span>
+        <button class="fmt-btn" data-size="0.85em" aria-label="선택한 글자 작게" style="font-size:12px">작게</button>
+        <button class="fmt-btn" data-size="1em" aria-label="선택한 글자 보통 크기">보통</button>
+        <button class="fmt-btn" data-size="1.3em" aria-label="선택한 글자 크게" style="font-size:16px">크게</button>
+        <button class="fmt-btn" data-size="1.7em" data-bold="1" aria-label="선택한 글자를 제목으로" style="font-size:17px">제목</button>
+      </div>
+      <div class="fmt-group fmt-size"><span class="fmt-label">전체 크기</span>
         <button class="fmt-btn" id="fsDown" aria-label="글씨 작게">가−</button><span id="fsVal"></span><button class="fmt-btn" id="fsUp" aria-label="글씨 크게">가+</button>
       </div>
     </div>
@@ -641,10 +647,12 @@ function sanitize(html) { // 저장된 본문을 화면에 넣기 전, 허용한
         else {
           const color = c.style.color || (c.tagName === 'FONT' ? c.getAttribute('color') : '');
           const bg = c.style.backgroundColor, fw = c.style.fontWeight;
+          const fs = /^(0\.\d+|[1-3](\.\d+)?)em$/.test(c.style.fontSize) ? c.style.fontSize : ''; // 글자 크기는 em 단위만 허용
           [...c.attributes].forEach(a => c.removeAttribute(a.name));
           if (color) c.style.color = color;
           if (bg) c.style.backgroundColor = bg;
           if (fw) c.style.fontWeight = fw;
+          if (fs) c.style.fontSize = fs;
           clean(c);
         }
       } else if (c.nodeType !== 3) c.remove();
@@ -1191,6 +1199,30 @@ function restoreSel() {
   if (document.activeElement !== ed) ed.focus({ preventScroll: true });
   if (savedRange && ed.contains(savedRange.startContainer)) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(savedRange); }
 }
+/* 선택한 글자만 크기 바꾸기: 전체 크기에 대한 비율(em)로 저장 → '전체 크기'를 바꾸면 함께 커지고 작아짐 */
+function applySize(size, bold) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount || sel.isCollapsed) { toast('크기를 바꿀 글자를 먼저 선택하세요'); return false; }
+  const ed = $('ed');
+  try { document.execCommand('styleWithCSS', false, false); } catch (e) {}
+  document.execCommand('fontSize', false, '7');
+  try { document.execCommand('styleWithCSS', false, true); } catch (e) {}
+  const marked = [...ed.querySelectorAll('font[size="7"]'),
+    ...[...ed.querySelectorAll('span')].filter(x => /xxx-large/.test(x.style.fontSize))];
+  marked.forEach(el => {
+    el.querySelectorAll('[style*="font-size"]').forEach(x => { x.style.fontSize = ''; if (bold === false && size === '1em') x.style.fontWeight = ''; });
+    const sp = document.createElement('span');
+    if (el.tagName === 'SPAN') sp.style.cssText = el.style.cssText;
+    else if (el.getAttribute('color')) sp.style.color = el.getAttribute('color');
+    sp.style.fontSize = size === '1em' ? '' : size;
+    if (bold) sp.style.fontWeight = '700';
+    else if (size === '1em') sp.style.fontWeight = '';
+    while (el.firstChild) sp.appendChild(el.firstChild);
+    if (sp.getAttribute('style')) el.replaceWith(sp);
+    else el.replaceWith(...sp.childNodes);
+  });
+  return true;
+}
 function applyFormat(btn) {
   const n = data.notes[ui.noteId];
   if (!n || n.trashed || (n.locked && !vault.key)) return;
@@ -1205,6 +1237,7 @@ function applyFormat(btn) {
   }
   else if (btn.dataset.fore) document.execCommand('foreColor', false, btn.dataset.fore);
   else if (btn.dataset.hl) { if (!document.execCommand('hiliteColor', false, btn.dataset.hl)) document.execCommand('backColor', false, btn.dataset.hl); }
+  else if (btn.dataset.size) { if (!applySize(btn.dataset.size, !!btn.dataset.bold)) return; }
   else if (btn.dataset.cmd) document.execCommand(btn.dataset.cmd, false, null);
   onEdInput();
 }
