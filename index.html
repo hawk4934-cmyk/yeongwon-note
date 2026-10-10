@@ -209,8 +209,56 @@ dialog input[type=text],dialog input[type=email],dialog input[type=password]{wid
   #ed{padding:12px 20px 60px}
   .fmt-bar{padding:8px 10px}
   .list{border-right:0}
+  #sortSel{max-width:78px;padding:4px 2px}
+  .list-head .icon-btn{width:30px}
 }
 @media (prefers-reduced-motion:reduce){.side,.editor{transition:none}}
+/* ===== 한 화면씩 보기 (솜노트 방식): 폴더 → 메모 목록 → 메모 ===== */
+.docic,.rdate,#newTop,.home-search{display:none}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.refresh-btn{font-size:20px;flex:none}
+.refresh-btn.spin{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+body.single .app{grid-template-columns:minmax(0,1fr)}
+body.single .side{position:fixed;inset:0;width:100%;z-index:12;transform:none;transition:none;border-right:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg)}
+body.single:not(.home) .side{display:none}
+body.single.home .list{display:none}
+body.single .scrim{display:none!important}
+body.single .brand{font-size:22px;padding:22px 24px 14px}
+body.single .nav{padding:4px 14px 10px}
+body.single .nav-item{font-size:17px;padding:13px 12px}
+body.single .fic{width:22px;height:19px}
+body.single .home-search{display:flex;align-items:center;gap:10px;margin:6px 14px 4px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--muted);font-size:16px;text-align:left}
+body.single .menu-btn{display:inline-grid;font-size:26px}
+body.single .list-head{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 12px}
+body.single .list-title{text-align:center;font-size:19px}
+body.single #newTop{display:inline-grid;font-size:26px;color:var(--accent)}
+body.single .fab{display:none!important}
+body.single .list{background:var(--surface)}
+body.single .search{order:9;margin:8px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+body.single .trash-bar{margin-top:10px}
+body.single .notes{padding:0 0 20px}
+body.single .note-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:16px;align-items:center;border-radius:0;margin:0;padding:15px 20px 15px 22px;border-bottom:1px solid var(--line)}
+body.single .note-item::before{left:0;top:0;bottom:0;width:4px;border-radius:0}
+body.single .note-item.on{box-shadow:none;background:var(--accent-soft)}
+body.single .docic{display:block;grid-row:1 / span 2;width:22px;height:26px;color:var(--faint)}
+body.single .note-title{grid-column:2;font-size:calc(var(--ed-size,17px) * 1);font-weight:500}
+body.single .rdate{display:block;grid-column:3;grid-row:1;font-size:13px;color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+body.single .note-meta{grid-column:2 / span 2;display:none}
+body.single.searching .note-meta{display:flex}
+body.single .note-meta time{display:none}
+body.single .note-item.selmode{padding-left:52px}
+body.single .chk{left:18px}
+body.single .note-item.manual{padding-right:60px}
+body.single .sub-item{border-radius:0;border-bottom:1px solid var(--line);padding:15px 20px 15px 22px;margin:0}
+body.single .sub-sep{display:none}
+body.single .sel-bar{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+body.single .editor{position:fixed;inset:0;z-index:15;transform:translateX(100%);transition:transform .22s ease;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body.single.editing .editor{transform:none}
+body.single .ed-bar .back{display:inline-flex;align-items:center;width:auto;min-width:56px;flex:none;white-space:nowrap;padding:0 8px;font-size:15px;color:var(--accent);font-weight:600}
+body.single .ed-bar .edmenu{display:none}
+body.single .hits:not(.hidden) ~ .saved{display:none}
+@media (prefers-reduced-motion:reduce){body.single .editor{transition:none}}
 .err.ok{color:#3E8A55}
 .reset-link{display:inline-block;margin-top:10px}
 .desc{font-size:13px;color:var(--muted);margin:0 0 4px;line-height:1.65}
@@ -227,8 +275,9 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
 <body>
 <div class="app">
   <aside class="side" id="side">
-    <div class="brand">영원노트</div>
+    <div class="brand"><span>영원노트</span><button class="icon-btn refresh-btn" data-refresh aria-label="새로고침" title="새로고침">⟳</button></div>
     <nav class="nav" id="nav"></nav>
+    <button class="home-search" id="homeSearch"><span aria-hidden="true">🔍</span>모든 메모에서 검색</button>
     <div class="side-foot">
       <div class="sync" id="sync"><i></i><span>이 기기에만 저장 중</span></div>
       <div class="foot-links">
@@ -242,7 +291,8 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <button class="link" id="importBtn">백업 불러오기</button>
         <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       </div>
-      <div class="app-ver">영원노트 버전 24</div>
+      <div class="foot-links"><button class="link" id="layoutBtn"></button></div>
+      <div class="app-ver">영원노트 버전 26</div>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -250,7 +300,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
   <section class="list">
     <div class="list-head">
       <button class="icon-btn menu-btn" id="menuBtn" aria-label="폴더 열기">☰</button>
-      <div class="list-title" id="listTitle">전체 메모</div>
+      <div class="list-title" id="listTitle">폴더 없는 메모</div>
       <select id="sortSel" aria-label="정렬">
         <option value="updated">최근 수정순</option>
         <option value="created">만든 날짜순</option>
@@ -258,6 +308,8 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <option value="manual">직접 정렬</option>
       </select>
       <button class="link" id="selStart">선택</button>
+      <button class="icon-btn refresh-btn" data-refresh aria-label="새로고침" title="새로고침">⟳</button>
+      <button class="icon-btn" id="newTop" aria-label="새 메모">+</button>
     </div>
     <div class="search"><input type="search" id="q" placeholder="메모 검색" autocomplete="off"></div>
     <div class="trash-bar hidden" id="trashBar"><span>30일이 지나면 자동으로 지워집니다</span><button class="link" id="emptyTrash">비우기</button></div>
@@ -977,6 +1029,7 @@ function renderList() {
   }
   const list = viewNotes();
   const re = termRegex();
+  document.body.classList.toggle('searching', !!re);
   const subs = !re && fAlive(ui.view) ? childrenOf(ui.view) : [];
   const actives = liveNotes().filter(n => !n.trashed);
   const subHtml = subs.map(f => {
@@ -997,6 +1050,8 @@ function renderList() {
     const tab = f && !f.deleted ? f.color : 'transparent';
     const sealed = textOf(n) === null;
     return `<button class="note-item ${n.id === ui.noteId && !selMode ? 'on' : ''} ${sealed ? 'sealed' : ''} ${selMode ? 'selmode' : ''} ${manual ? 'manual' : ''}" data-id="${n.id}" style="--tab:${tab}">${manual ? `<span class="mv"><b data-up="${n.id}" aria-label="위로">▲</b><b data-dn="${n.id}" aria-label="아래로">▼</b></span>` : ''}${selMode ? `<span class="chk ${selected.has(n.id) ? 'on' : ''}"></span>` : ''}
+      <svg class="docic" viewBox="0 0 22 26" aria-hidden="true"><rect x="1.5" y="1.5" width="19" height="23" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 8h10M6 12h10M6 16h10M6 20h6" stroke="currentColor" stroke-width="1.4"/></svg>
+      <time class="rdate">${fmtDate(ui.view === 'trash' ? n.trashedAt : n.updatedAt)}</time>
       <div class="note-title">${n.pinned && !n.trashed ? '<span class="pin">●</span>' : ''}${n.locked ? '<span class="lockmark">🔒</span>' : ''}${!sealed && hasImg(n) ? '<span class="imgmark">📷</span>' : ''}<span class="tt">${hlHtml(titleOf(n), sealed ? null : re)}</span>${re && hitCounts[n.id] ? `<span class="hitcount">${hitCounts[n.id]}회</span>` : ''}</div>
       <div class="note-meta"><time>${fmtDate(ui.view === 'trash' ? n.trashedAt : n.updatedAt)}</time><span>${(() => { const sn = snippetOf(n, re); return sn ? hlHtml(sn, re) : esc(previewOf(n)); })()}</span></div>
     </button>`;
@@ -1259,7 +1314,33 @@ $('fmtBar').addEventListener('click', e => { if (e.target.closest('button')) e.p
 applyFont();
 
 /* ---------- 동작 ---------- */
-const isPhone = () => matchMedia('(max-width:719px)').matches;
+const isSingle = () => document.body.classList.contains('single');
+const isPhone = () => isSingle() || matchMedia('(max-width:719px)').matches;
+/* 화면 방식: 'single'(한 화면씩, 기본) / 'split'(3칸). 휴대폰은 항상 한 화면씩. 기기마다 기억 */
+let layoutPref = 'single';
+try { layoutPref = localStorage.getItem('hangyeol.layout') || 'single'; } catch (e) {}
+let viewStack = [];
+function applyLayout() {
+  const single = layoutPref === 'single' || matchMedia('(max-width:719px)').matches;
+  const was = isSingle();
+  document.body.classList.toggle('single', single);
+  if (single && !was) { document.body.classList.add('home'); viewStack = []; }
+  if (!single) document.body.classList.remove('home');
+  $('layoutBtn').textContent = layoutPref === 'single' ? '화면: 한 화면씩 → 3칸 보기로' : '화면: 3칸 → 한 화면씩 보기로';
+  $('layoutBtn').classList.toggle('hidden', matchMedia('(max-width:719px)').matches);
+  $('menuBtn').textContent = single ? '‹' : '☰';
+  $('menuBtn').setAttribute('aria-label', single ? '폴더 목록으로' : '폴더 열기');
+}
+function goList(view) { // 폴더 화면 → 메모 목록 화면
+  ui.view = view; ui.noteId = null;
+  if (isSingle()) {
+    if (document.body.classList.contains('home')) { document.body.classList.remove('home'); history.pushState({ list: true }, ''); }
+    else { viewStack.push(prevView); history.pushState({ list: true }, ''); }
+  }
+  renderAll();
+}
+let prevView = 'unfiled';
+function goHome() { document.body.classList.add('home'); viewStack = []; if (selMode) exitSel(true); ui.noteId = null; renderAll(); }
 const discard = n => {
   imagesOf(n.id).forEach(im => put('images', { id: im.id, deleted: true }));
   put('notes', { id: n.id, deleted: true });
@@ -1390,13 +1471,15 @@ $('nav').addEventListener('click', e => {
   if (!it) return;
   if (selMode) exitSel();
   if (document.body.classList.contains('editing')) { closeEditor(); history.back(); } // 좁은 화면: 메모를 닫고 목록으로
-  ui.view = it.dataset.view; ui.noteId = null;
   document.body.classList.remove('drawer');
+  if (isSingle()) { prevView = ui.view; goList(it.dataset.view); return; }
+  ui.view = it.dataset.view; ui.noteId = null;
   renderAll();
 });
 $('notes').addEventListener('click', async e => {
   if (e.target.closest('[data-unlock]')) { if (await ensureKey()) renderAll(); return; }
   const go = e.target.closest('[data-goto]');
+  if (go && isSingle()) { if (selMode) exitSel(); prevView = ui.view; ancestors(go.dataset.goto).forEach(a => collapsed.delete(a)); saveCollapsed(); goList(go.dataset.goto); return; }
   if (go) { if (selMode) exitSel(); ui.view = go.dataset.goto; ui.noteId = null; ancestors(ui.view).forEach(a => collapsed.delete(a)); saveCollapsed(); renderAll(); return; }
   const up = e.target.closest('[data-up]'), dn = e.target.closest('[data-dn]');
   if (up || dn) { moveNote((up || dn).dataset.up || (up || dn).dataset.dn, up ? -1 : 1); return; }
@@ -1514,7 +1597,26 @@ $('q').addEventListener('keydown', e => { // 엔터: 첫 번째 결과 열기
   const first = $('notes').querySelector('[data-id]');
   if (first) { e.preventDefault(); $('q').blur(); openNote(first.dataset.id); }
 });
-$('menuBtn').onclick = () => document.body.classList.add('drawer');
+$('menuBtn').onclick = () => { if (isSingle()) history.back(); else document.body.classList.add('drawer'); };
+$('newTop').onclick = () => newNote();
+/* 새로고침: 저장 대기 중인 내용을 먼저 저장하고, 새 버전이 있으면 받은 뒤 다시 엶 */
+async function refreshApp() {
+  document.querySelectorAll('[data-refresh]').forEach(b => b.classList.add('spin'));
+  toast('새로고침 중…');
+  try { if (vault.key) await vault.flush(); } catch (e) {}
+  try { await store.flush(); } catch (e) {}
+  try { if (cloud.fs) await cloud.fs.waitForPendingWrites(); } catch (e) {}
+  try { const r = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (r) await r.update(); } catch (e) {}
+  location.reload();
+}
+document.addEventListener('click', e => { if (e.target.closest('[data-refresh]')) refreshApp(); });
+$('homeSearch').onclick = () => { prevView = ui.view; goList('unfiled'); setTimeout(() => $('q').focus(), 60); };
+$('layoutBtn').onclick = () => {
+  layoutPref = layoutPref === 'single' ? 'split' : 'single';
+  try { localStorage.setItem('hangyeol.layout', layoutPref); } catch (e) {}
+  applyLayout(); renderAll();
+};
+window.addEventListener('resize', () => { const s = isSingle(); applyLayout(); if (s !== isSingle()) renderAll(); });
 $('scrim').onclick = () => document.body.classList.remove('drawer');
 $('backBtn').onclick = () => history.back();
 $('sortSel').value = sortMode;
@@ -1523,6 +1625,10 @@ $('edMenuBtn').onclick = () => document.body.classList.add('drawer');
 window.addEventListener('popstate', () => {
   if (document.body.classList.contains('editing')) closeEditor();
   else if (selMode) exitSel(true);
+  else if (isSingle() && !document.body.classList.contains('home')) { // 뒤로: 상위 폴더 → 폴더 화면
+    if (viewStack.length) { ui.view = viewStack.pop(); ui.noteId = null; renderAll(); }
+    else goHome();
+  }
 });
 document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); newNote(); } });
 
@@ -1781,6 +1887,7 @@ $('loginGo').onclick = async () => {
 };
 
 /* ---------- 시작 ---------- */
+applyLayout();
 (async () => {
   await store.open();
   await loadLocal();
