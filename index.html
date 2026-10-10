@@ -145,6 +145,7 @@ mark{background:var(--hl);color:inherit;border-radius:2px}
 #ed [style*="background-color"] [style*="--ink"],#ed [style*="background-color"][style*="--ink"]{color:#1F2633!important}
 .sw-default{background:var(--ink);box-shadow:inset 0 0 0 3px var(--surface)}
 #ed b,#ed strong{font-weight:700}
+#ed u,#ed [style*="underline"]{text-underline-offset:3px}
 mark{background:var(--hl);color:inherit;border-radius:2px}
 #ed img{display:block;max-width:100%;height:auto;margin:10px 0;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;min-width:60px;min-height:40px;background:var(--bg)}
 .img-view{position:fixed;inset:0;z-index:70;background:rgba(10,12,16,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:calc(12px + env(safe-area-inset-top,0px)) 10px calc(12px + env(safe-area-inset-bottom,0px))}
@@ -240,7 +241,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <button class="link" id="importBtn">백업 불러오기</button>
         <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       </div>
-      <div class="app-ver">영원노트 버전 22</div>
+      <div class="app-ver">영원노트 버전 23</div>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -307,6 +308,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
       </div>
       <div class="fmt-group">
         <button class="fmt-btn" data-cmd="bold" aria-label="굵게"><b>B</b></button>
+        <button class="fmt-btn" data-cmd="underline" aria-label="밑줄"><u>U</u></button>
         <button class="fmt-btn" data-cmd="removeFormat" aria-label="서식 지우기">지우기</button>
       </div>
       <div class="fmt-group"><span class="fmt-label">선택 글자</span>
@@ -647,12 +649,14 @@ function sanitize(html) { // 저장된 본문을 화면에 넣기 전, 허용한
         else {
           const color = c.style.color || (c.tagName === 'FONT' ? c.getAttribute('color') : '');
           const bg = c.style.backgroundColor, fw = c.style.fontWeight;
+          const ul = /underline/.test((c.style.textDecorationLine || '') + ' ' + (c.style.textDecoration || '')); // 밑줄
           const fs = /^(0\.\d+|[1-3](\.\d+)?)em$/.test(c.style.fontSize) ? c.style.fontSize : ''; // 글자 크기는 em 단위만 허용
           [...c.attributes].forEach(a => c.removeAttribute(a.name));
           if (color) c.style.color = color;
           if (bg) c.style.backgroundColor = bg;
           if (fw) c.style.fontWeight = fw;
           if (fs) c.style.fontSize = fs;
+          if (ul) c.style.textDecoration = 'underline';
           clean(c);
         }
       } else if (c.nodeType !== 3) c.remove();
