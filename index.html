@@ -80,7 +80,12 @@ dialog select{width:100%;padding:9px 10px;border:1px solid var(--line);border-ra
 .list-head{padding:16px 16px 10px;display:flex;align-items:center;gap:8px}
 .list-title{font-size:20px;font-weight:700;letter-spacing:-.02em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .menu-btn{display:none}
-.search{margin:0 16px 10px;position:relative}
+.search{margin:0 16px 10px;position:relative;display:flex;align-items:center;gap:6px}
+.search input{flex:1;min-width:0}
+.scope-btn{flex:none;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap}
+.scope-btn.all{background:var(--accent);color:#fff;border-color:var(--accent)}
+.brand .brand-btns{display:flex;align-items:center;gap:2px}
+#newHome{font-size:24px;color:var(--accent)}
 .search input{width:100%;padding:9px 12px 9px 34px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:15px}
 .search input:focus{outline:none;border-color:var(--accent)}
 .search::before{content:"";position:absolute;left:12px;top:50%;width:11px;height:11px;border:2px solid var(--faint);border-radius:50%;transform:translateY(-62%)}
@@ -275,7 +280,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
 <body>
 <div class="app">
   <aside class="side" id="side">
-    <div class="brand"><span>영원노트</span><button class="icon-btn refresh-btn" data-refresh aria-label="새로고침" title="새로고침">⟳</button></div>
+    <div class="brand"><span>영원노트</span><span class="brand-btns"><button class="icon-btn refresh-btn" data-refresh aria-label="새로고침" title="새로고침">⟳</button><button class="icon-btn" id="newHome" aria-label="새 메모" title="새 메모 (폴더 없는 메모에 만들어짐)">+</button></span></div>
     <nav class="nav" id="nav"></nav>
     <button class="home-search" id="homeSearch"><span aria-hidden="true">🔍</span>모든 메모에서 검색</button>
     <div class="side-foot">
@@ -292,7 +297,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       </div>
       <div class="foot-links"><button class="link" id="layoutBtn"></button></div>
-      <div class="app-ver">영원노트 버전 26</div>
+      <div class="app-ver">영원노트 버전 27</div>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -311,7 +316,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
       <button class="icon-btn refresh-btn" data-refresh aria-label="새로고침" title="새로고침">⟳</button>
       <button class="icon-btn" id="newTop" aria-label="새 메모">+</button>
     </div>
-    <div class="search"><input type="search" id="q" placeholder="메모 검색" autocomplete="off"></div>
+    <div class="search"><input type="search" id="q" placeholder="메모 검색" autocomplete="off"><button class="scope-btn" id="scopeBtn" title="검색 범위 바꾸기">이 폴더에서</button></div>
     <div class="trash-bar hidden" id="trashBar"><span>30일이 지나면 자동으로 지워집니다</span><button class="link" id="emptyTrash">비우기</button></div>
     <div class="notes" id="notes"></div>
     <button class="fab" id="newBtn" aria-label="새 메모">+</button>
@@ -478,7 +483,7 @@ const emptyData = () => ({ folders: {}, notes: {}, meta: {}, images: {} });
 let imgPlain = {}; // 잠긴 메모의 사진을 풀어 둔 것 (메모리에만)
 
 let data = emptyData();
-let ui = { view: 'unfiled', noteId: null, q: '' };
+let ui = { view: 'unfiled', noteId: null, q: '', scope: 'here' };
 /* 폴더 모양 아이콘 (폴더 색으로 칠함) */
 const folderIcon = color => `<svg class="fic" viewBox="0 0 20 16" aria-hidden="true"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h4.4l1.8 2H17A1.5 1.5 0 0 1 18.5 5v8.5A1.5 1.5 0 0 1 17 15H3a1.5 1.5 0 0 1-1.5-1.5Z" fill="${color}"/><path d="M1.5 6h17" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/></svg>`;
 
@@ -944,7 +949,12 @@ function viewNotes() {
   if (terms.length) { // 검색할 때는 폴더와 상관없이 전체에서 찾음 (휴지통에서는 휴지통 안에서)
     const q = terms[0];
     hitCounts = {};
-    list = list.filter(n => !!n.trashed === (ui.view === 'trash')).filter(n => {
+    list = list.filter(n => !!n.trashed === (ui.view === 'trash'));
+    if (ui.scope === 'here' && ui.view !== 'trash') { // 이 폴더(하위 폴더 포함)에서만
+      if (ui.view === 'unfiled') list = list.filter(n => !fAlive(n.folderId));
+      else if (fAlive(ui.view)) { const ids = new Set([ui.view, ...descendants(ui.view)]); list = list.filter(n => ids.has(n.folderId)); }
+    }
+    list = list.filter(n => {
       const t = textOf(n); if (t === null) return false;
       const low = t.toLowerCase();
       let c = 0, i = low.indexOf(q);
@@ -1018,7 +1028,15 @@ function renderNav() {
   $('vaultChangeBtn').classList.toggle('hidden', !vault.cfg);
 }
 
+function renderScope() {
+  const b = $('scopeBtn'); if (!b) return;
+  b.classList.toggle('hidden', ui.view === 'trash');
+  b.classList.toggle('all', ui.scope === 'all');
+  b.textContent = ui.scope === 'all' ? '모든 메모에서' : (ui.view === 'unfiled' ? '폴더 없는 메모에서' : '이 폴더에서');
+  $('q').placeholder = ui.scope === 'all' ? '모든 메모에서 검색' : '이 폴더에서 검색';
+}
 function renderList() {
+  renderScope();
   $('listTitle').textContent = viewName();
   $('trashBar').classList.toggle('hidden', ui.view !== 'trash');
   const sealedFolder = folderLocked(ui.view) && !vault.key;
@@ -1038,7 +1056,8 @@ function renderList() {
   }).join('') + (subs.length ? '<div class="sub-sep"></div>' : '');
   if (re) {
     const total = list.reduce((sum, n) => sum + (hitCounts[n.id] || 0), 0);
-    $('listTitle').textContent = `검색 결과 ${list.length}개 메모 · ${total}곳` + (ui.view === 'trash' ? ' (휴지통)' : '');
+    const where = ui.view === 'trash' ? ' (휴지통)' : ui.scope === 'here' ? ` (${ui.view === 'unfiled' ? '폴더 없는 메모' : (fAlive(ui.view) || {}).name || ''})` : ' (전체)';
+    $('listTitle').textContent = `검색 결과 ${list.length}개 메모 · ${total}곳` + where;
   }
   if (!list.length) {
     $('notes').innerHTML = subHtml + `<div class="empty">${ui.q ? '검색 결과가 없습니다' : ui.view === 'trash' ? '휴지통이 비어 있습니다' : '+ 버튼으로 첫 메모를 써 보세요'}</div>`;
@@ -1472,6 +1491,7 @@ $('nav').addEventListener('click', e => {
   if (selMode) exitSel();
   if (document.body.classList.contains('editing')) { closeEditor(); history.back(); } // 좁은 화면: 메모를 닫고 목록으로
   document.body.classList.remove('drawer');
+  ui.scope = 'here';
   if (isSingle()) { prevView = ui.view; goList(it.dataset.view); return; }
   ui.view = it.dataset.view; ui.noteId = null;
   renderAll();
@@ -1610,7 +1630,12 @@ async function refreshApp() {
   location.reload();
 }
 document.addEventListener('click', e => { if (e.target.closest('[data-refresh]')) refreshApp(); });
-$('homeSearch').onclick = () => { prevView = ui.view; goList('unfiled'); setTimeout(() => $('q').focus(), 60); };
+$('homeSearch').onclick = () => { prevView = ui.view; ui.scope = 'all'; goList('unfiled'); setTimeout(() => $('q').focus(), 60); };
+$('scopeBtn').onclick = () => { ui.scope = ui.scope === 'all' ? 'here' : 'all'; renderList(); renderHL(true); $('q').focus(); };
+$('newHome').onclick = () => { // 바깥(폴더 목록) 화면에서 바로 새 메모
+  if (isSingle()) { prevView = ui.view; ui.scope = 'here'; goList('unfiled'); }
+  newNote();
+};
 $('layoutBtn').onclick = () => {
   layoutPref = layoutPref === 'single' ? 'split' : 'single';
   try { localStorage.setItem('hangyeol.layout', layoutPref); } catch (e) {}
