@@ -27,6 +27,7 @@
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
+@supports (height:100dvh){html,body{height:100dvh}} /* iPad 화면 분할·Safari 도구막대에 가리지 않게 */
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow:hidden}
 button,input,textarea,select{font:inherit;color:inherit}
@@ -264,6 +265,29 @@ body.single .ed-bar .back{display:inline-flex;align-items:center;width:auto;min-
 body.single .ed-bar .edmenu{display:none}
 body.single .hits:not(.hidden) ~ .saved{display:none}
 @media (prefers-reduced-motion:reduce){body.single .editor{transition:none}}
+.hd-spacer,.ed-brk{display:none}
+/* ===== 좁은 화면(iPad 화면 분할, 휴대폰): 나가기 버튼과 검색을 크게, 두 줄로 ===== */
+@media (max-width:600px){
+  body.single .menu-btn{width:auto;padding:0 10px;font-size:16px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:10px;height:38px}
+  body.single .list-head{flex-wrap:wrap;row-gap:6px;padding:8px 10px}
+  body.single .hd-spacer{display:block;flex:1}
+  body.single .list-title{order:9;flex-basis:100%;text-align:left;font-size:20px;padding:0 4px;white-space:normal;overflow-wrap:anywhere}
+  body.single .list .search{order:1;margin:10px 12px 6px}
+  body.single .list-head{order:0}
+  body.single .trash-bar{order:2}
+  body.single .notes{order:3}
+  body.single .ed-bar{flex-wrap:wrap;row-gap:6px;padding:8px 10px}
+  body.single .ed-bar .back{order:1;height:38px;padding:0 12px;font-size:16px;font-weight:700;background:var(--accent-soft);border-radius:10px}
+  body.single .ed-bar .hits{order:2;margin-left:auto}
+  body.single .ed-bar .saved{order:3;margin-left:auto}
+  body.single .ed-bar .hits:not(.hidden) ~ .saved{display:none}
+  body.single .ed-bar .ed-brk{display:block;order:4;flex-basis:100%;height:0}
+  body.single .ed-bar #folderSel{order:5;max-width:none;flex:1 1 60px;width:0;min-width:0}
+  body.single .ed-bar .spacer{order:6;flex:0}
+  body.single .ed-bar #fmtBtn,body.single .ed-bar #lockBtn,body.single .ed-bar #pinBtn,body.single .ed-bar #delBtn,body.single .ed-bar #restoreBtn,body.single .ed-bar #purgeBtn{order:7;width:36px}
+  body.single .ed-bar #restoreBtn,body.single .ed-bar #purgeBtn{width:auto}
+  .hits .icon-btn{width:34px;height:34px;font-size:15px}
+}
 .err.ok{color:#3E8A55}
 .reset-link{display:inline-block;margin-top:10px}
 .desc{font-size:13px;color:var(--muted);margin:0 0 4px;line-height:1.65}
@@ -297,7 +321,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       </div>
       <div class="foot-links"><button class="link" id="layoutBtn"></button></div>
-      <div class="app-ver">영원노트 버전 27</div>
+      <div class="app-ver">영원노트 버전 28</div>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -305,6 +329,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
   <section class="list">
     <div class="list-head">
       <button class="icon-btn menu-btn" id="menuBtn" aria-label="폴더 열기">☰</button>
+      <span class="hd-spacer"></span>
       <div class="list-title" id="listTitle">폴더 없는 메모</div>
       <select id="sortSel" aria-label="정렬">
         <option value="updated">최근 수정순</option>
@@ -336,6 +361,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
       <button class="icon-btn back" id="backBtn" aria-label="목록·검색으로">‹ 목록</button>
       <select id="folderSel" aria-label="폴더"></select>
       <span class="spacer"></span>
+      <span class="ed-brk" aria-hidden="true"></span>
       <span class="hits hidden" id="hits"><button class="icon-btn" id="hitPrev" aria-label="이전 검색어">▲</button><span id="hitCount"></span><button class="icon-btn" id="hitNext" aria-label="다음 검색어">▼</button></span>
       <span class="saved" id="saved"></span>
       <button class="icon-btn hidden" id="fmtBtn" aria-label="글자색·형광펜·크기" title="글자색·형광펜·크기">가</button>
@@ -1347,7 +1373,7 @@ function applyLayout() {
   if (!single) document.body.classList.remove('home');
   $('layoutBtn').textContent = layoutPref === 'single' ? '화면: 한 화면씩 → 3칸 보기로' : '화면: 3칸 → 한 화면씩 보기로';
   $('layoutBtn').classList.toggle('hidden', matchMedia('(max-width:719px)').matches);
-  $('menuBtn').textContent = single ? '‹' : '☰';
+  $('menuBtn').textContent = single ? (matchMedia('(max-width:600px)').matches ? '‹ 폴더' : '‹') : '☰';
   $('menuBtn').setAttribute('aria-label', single ? '폴더 목록으로' : '폴더 열기');
 }
 function goList(view) { // 폴더 화면 → 메모 목록 화면
@@ -1647,6 +1673,18 @@ $('backBtn').onclick = () => history.back();
 $('sortSel').value = sortMode;
 $('sortSel').onchange = e => { sortMode = e.target.value; try { localStorage.setItem('hangyeol.sort', sortMode); } catch (x) {} renderList(); if (sortMode === 'manual') toast('▲▼ 버튼으로 순서를 바꿀 수 있습니다'); };
 $('edMenuBtn').onclick = () => document.body.classList.add('drawer');
+/* 왼쪽 가장자리에서 오른쪽으로 밀면 뒤로 (홈 화면 앱에서도) */
+let swipe = null;
+document.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  swipe = (isSingle() && t.clientX < 28 && !document.body.classList.contains('home') && !document.querySelector('dialog[open]')) ? { x: t.clientX, y: t.clientY } : null;
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  if (!swipe) return;
+  const t = e.changedTouches[0], dx = t.clientX - swipe.x, dy = Math.abs(t.clientY - swipe.y);
+  swipe = null;
+  if (dx > 70 && dy < 60) history.back();
+}, { passive: true });
 window.addEventListener('popstate', () => {
   if (document.body.classList.contains('editing')) closeEditor();
   else if (selMode) exitSel(true);
