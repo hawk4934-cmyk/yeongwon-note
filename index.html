@@ -163,6 +163,14 @@ mark{background:var(--hl);color:inherit;border-radius:2px}
 .imgmark{font-size:12px;margin-right:4px;opacity:.75}
 ::highlight(hl){background-color:var(--hl);text-decoration:underline 2px var(--hl-cur)}
 ::highlight(hlcur){background-color:var(--hl-cur);text-decoration:underline 2px var(--hl-cur)}
+::highlight(tts){background-color:rgba(64,140,220,.28)}
+.tts-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--accent-soft)}
+.tts-bar .fmt-btn{background:var(--surface)}
+.tts-bar #ttsPlay{min-width:84px;background:var(--accent);color:#fff}
+.tts-bar select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:5px 6px;font-size:13px;max-width:170px}
+.tts-bar .tts-info{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tts-bar .tts-close{margin-left:auto}
+#ttsBtn.on{background:var(--accent-soft)}
 .hits{display:flex;align-items:center;gap:2px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .hits .icon-btn{width:28px;height:28px;font-size:13px}
 .note-item .note-title{display:flex;align-items:center;gap:4px}
@@ -284,7 +292,7 @@ body.single .hits:not(.hidden) ~ .saved{display:none}
   body.single .ed-bar .ed-brk{display:block;order:4;flex-basis:100%;height:0}
   body.single .ed-bar #folderSel{order:5;max-width:none;flex:1 1 60px;width:0;min-width:0}
   body.single .ed-bar .spacer{order:6;flex:0}
-  body.single .ed-bar #fmtBtn,body.single .ed-bar #lockBtn,body.single .ed-bar #pinBtn,body.single .ed-bar #delBtn,body.single .ed-bar #restoreBtn,body.single .ed-bar #purgeBtn{order:7;width:36px}
+  body.single .ed-bar #ttsBtn,body.single .ed-bar #fmtBtn,body.single .ed-bar #lockBtn,body.single .ed-bar #pinBtn,body.single .ed-bar #delBtn,body.single .ed-bar #restoreBtn,body.single .ed-bar #purgeBtn{order:7;width:36px}
   body.single .ed-bar #restoreBtn,body.single .ed-bar #purgeBtn{width:auto}
   .hits .icon-btn{width:34px;height:34px;font-size:15px}
 }
@@ -321,7 +329,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       </div>
       <div class="foot-links"><button class="link" id="layoutBtn"></button></div>
-      <div class="app-ver">영원노트 버전 28</div>
+      <div class="app-ver">영원노트 버전 29</div>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -364,12 +372,23 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
       <span class="ed-brk" aria-hidden="true"></span>
       <span class="hits hidden" id="hits"><button class="icon-btn" id="hitPrev" aria-label="이전 검색어">▲</button><span id="hitCount"></span><button class="icon-btn" id="hitNext" aria-label="다음 검색어">▼</button></span>
       <span class="saved" id="saved"></span>
+      <button class="icon-btn hidden" id="ttsBtn" aria-label="소리 내어 읽기" title="소리 내어 읽기">🔊</button>
       <button class="icon-btn hidden" id="fmtBtn" aria-label="글자색·형광펜·크기" title="글자색·형광펜·크기">가</button>
       <button class="icon-btn" id="lockBtn" aria-label="잠금" title="이 메모 잠그기">🔒</button>
       <button class="icon-btn" id="pinBtn" aria-label="고정" title="맨 위에 고정">📌</button>
       <button class="icon-btn" id="delBtn" aria-label="휴지통으로" title="휴지통으로">🗑</button>
       <button class="btn hidden" id="restoreBtn">복원</button>
       <button class="btn danger hidden" id="purgeBtn">영구 삭제</button>
+    </div>
+    <div class="tts-bar hidden" id="ttsBar">
+      <button class="fmt-btn" id="ttsPlay">▶ 읽기</button>
+      <button class="fmt-btn" id="ttsStop">■ 정지</button>
+      <label class="fmt-label">속도 <select id="ttsRate">
+        <option value="0.7">아주 느리게</option><option value="0.85">느리게</option><option value="1" selected>보통</option><option value="1.2">빠르게</option><option value="1.5">아주 빠르게</option>
+      </select></label>
+      <select id="ttsVoice" aria-label="목소리"></select>
+      <span class="tts-info" id="ttsInfo"></span>
+      <button class="fmt-btn tts-close" id="ttsClose">닫기</button>
     </div>
     <div class="fmt-bar hidden" id="fmtBar">
       <div class="fmt-group">
@@ -1151,6 +1170,7 @@ $('hitNext').onclick = () => stepHit(1);
 let edSrc = null, edNote = null; // 편집기에 지금 들어 있는 본문의 원본 (타이핑 중 커서가 튀지 않게)
 function setEdContent(id, html) {
   if (edNote === id && edSrc === html) return;
+  if (edNote !== id) ttsStop(true); // 다른 메모로 가면 읽기 멈춤
   const ed = $('ed');
   ed.innerHTML = sanitize(html);
   edSrc = html; edNote = id;
@@ -1258,15 +1278,16 @@ function renderEditor(jump) {
   $('edBody').classList.toggle('hidden', !has || sealed);
   $('edLocked').classList.toggle('hidden', !sealed);
   $('edEmpty').classList.toggle('hidden', !!has);
-  ['folderSel', 'lockBtn', 'pinBtn', 'delBtn', 'restoreBtn', 'purgeBtn', 'saved', 'hits', 'fmtBtn'].forEach(id => $(id).classList.add('hidden'));
+  ['folderSel', 'lockBtn', 'pinBtn', 'delBtn', 'restoreBtn', 'purgeBtn', 'saved', 'hits', 'fmtBtn', 'ttsBtn'].forEach(id => $(id).classList.add('hidden'));
   $('fmtBar').classList.add('hidden');
-  if (!has || sealed) { edNote = null; edSrc = null; }
+  if (!has || sealed) { edNote = null; edSrc = null; ttsStop(true); }
   if (!has) return;
   if (sealed) { if (!n.trashed) $('delBtn').classList.remove('hidden'); else $('purgeBtn').classList.remove('hidden'); return; }
   const ed = $('ed');
   setEdContent(n.id, htmlOf(n));
   ed.contentEditable = n.trashed ? 'false' : 'true';
   $('fmtBtn').classList.remove('hidden');
+  if (ttsOK) $('ttsBtn').classList.remove('hidden');
   $('fmtBar').classList.toggle('hidden', !fmtOpen || !!n.trashed);
   $('fmtBtn').classList.toggle('on', fmtOpen && !n.trashed);
   requestAnimationFrame(() => renderHL(jump));
@@ -1295,6 +1316,124 @@ function applyFont() {
   requestAnimationFrame(() => renderHL(false));
 }
 $('fmtBtn').onclick = () => { fmtOpen = !fmtOpen; $('fmtBar').classList.toggle('hidden', !fmtOpen); $('fmtBtn').classList.toggle('on', fmtOpen); };
+
+/* ================================================================
+   소리 내어 읽기 (기기에 들어 있는 음성 사용, 인터넷·비용 없음)
+   선택한 글자 → 그 부분만 / 커서가 있으면 → 그 자리부터 / 아니면 → 처음부터
+   ================================================================ */
+const ttsOK = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+const tts = { on: false, paused: false, chunks: [], idx: 0, text: '', cur: null, open: false };
+let ttsRate = 1, ttsVoiceName = '';
+try { ttsRate = parseFloat(localStorage.getItem('hangyeol.ttsRate')) || 1; ttsVoiceName = localStorage.getItem('hangyeol.ttsVoice') || ''; } catch (e) {}
+function koVoices() { return ttsOK ? speechSynthesis.getVoices().filter(v => /^ko/i.test(v.lang)) : []; }
+function fillVoices() {
+  const vs = koVoices(), sel = $('ttsVoice');
+  sel.innerHTML = vs.length ? vs.map(v => `<option value="${esc(v.name)}">${esc(v.name.replace(/^Microsoft |^Google /, '').slice(0, 28))}</option>`).join('') : '<option value="">기본 목소리</option>';
+  if (vs.some(v => v.name === ttsVoiceName)) sel.value = ttsVoiceName;
+}
+if (ttsOK) { fillVoices(); speechSynthesis.onvoiceschanged = fillVoices; }
+function textOffset(node, off) { // 편집기 처음부터 (node, off)까지의 글자 수
+  const ed = $('ed'), r = document.createRange();
+  try { r.setStart(ed, 0); r.setEnd(node, off); } catch (e) { return 0; }
+  const d = document.createElement('div'); d.appendChild(r.cloneContents());
+  return walkText(d).length;
+}
+function rangeAt(start, end) { // 글자 위치 → 화면의 범위
+  const nodes = [];
+  walkText($('ed'), (n, st) => nodes.push([n, st]));
+  const loc = pos => { for (let i = nodes.length - 1; i >= 0; i--) if (nodes[i][1] <= pos) return [nodes[i][0], Math.min(pos - nodes[i][1], nodes[i][0].nodeValue.length)]; return null; };
+  const a = loc(start), b = loc(Math.max(start, end - 1));
+  if (!a || !b) return null;
+  const r = document.createRange();
+  try { r.setStart(a[0], a[1]); r.setEnd(b[0], Math.min(b[1] + 1, b[0].nodeValue.length)); return r; } catch (e) { return null; }
+}
+function makeChunks(text, from, to) { // 문장 단위로 나눔 (긴 문장은 쉼표·띄어쓰기에서 끊음)
+  const out = [], push = (a, b) => { while (a < b && /\s/.test(text[a])) a++; while (b > a && /\s/.test(text[b - 1])) b--; if (b > a) out.push([a, b]); };
+  let s = from;
+  for (let i = from; i < to; i++) {
+    const c = text[i];
+    const end = c === '\n' || ('.?!。'.includes(c) && (i + 1 >= to || /\s/.test(text[i + 1])));
+    const long = i - s >= 160 && /[\s,]/.test(c);
+    if (end || long) { push(s, i + 1); s = i + 1; }
+  }
+  push(s, to);
+  return out;
+}
+function ttsUI() {
+  $('ttsBar').classList.toggle('hidden', !tts.open);
+  $('ttsBtn').classList.toggle('on', tts.open);
+  $('ttsPlay').textContent = tts.on && !tts.paused ? '⏸ 멈춤' : (tts.on && tts.paused ? '▶ 계속' : '▶ 읽기');
+  $('ttsInfo').textContent = tts.on ? `${Math.min(tts.idx + 1, tts.chunks.length)} / ${tts.chunks.length} 문장` : '';
+  $('ttsRate').value = String(ttsRate);
+}
+function markChunk(c) {
+  if (!(window.CSS && CSS.highlights && window.Highlight)) return;
+  const r = c && rangeAt(c[0], c[1]);
+  if (!r) { CSS.highlights.delete('tts'); return; }
+  CSS.highlights.set('tts', new Highlight(r));
+  const ed = $('ed'), rc = r.getBoundingClientRect(), box = ed.getBoundingClientRect();
+  if (rc.top < box.top + 40 || rc.bottom > box.bottom - 40) ed.scrollTop += rc.top - box.top - ed.clientHeight / 3;
+}
+function speakNext() {
+  if (!tts.on || tts.paused) return;
+  if (tts.idx >= tts.chunks.length) { ttsStop(); toast('다 읽었습니다'); return; }
+  const c = tts.chunks[tts.idx];
+  const u = new SpeechSynthesisUtterance(tts.text.slice(c[0], c[1]));
+  u.lang = 'ko-KR'; u.rate = ttsRate;
+  const v = koVoices().find(x => x.name === ttsVoiceName) || koVoices()[0];
+  if (v) u.voice = v;
+  u.onend = () => { if (u !== tts.cur) return; tts.idx++; speakNext(); };
+  u.onerror = e => { if (u !== tts.cur || e.error === 'interrupted' || e.error === 'canceled') return; tts.idx++; speakNext(); };
+  tts.cur = u;
+  markChunk(c); ttsUI();
+  speechSynthesis.speak(u);
+}
+function ttsStart() { // 버튼을 누른 순간(동기)에 바로 시작해야 iPad·iPhone에서도 소리가 남
+  const n = data.notes[ui.noteId]; if (!n) return;
+  const ed = $('ed'), text = walkText(ed);
+  if (!text.trim()) { toast('읽을 내용이 없습니다'); return; }
+  let from = 0, to = text.length;
+  if (savedRange && ed.contains(savedRange.startContainer)) {
+    const a = textOffset(savedRange.startContainer, savedRange.startOffset);
+    if (!savedRange.collapsed) { to = textOffset(savedRange.endContainer, savedRange.endOffset); from = a; }
+    else if (text.slice(a).trim()) from = a;
+  }
+  speechSynthesis.cancel();
+  Object.assign(tts, { on: true, paused: false, text, chunks: makeChunks(text, from, to), idx: 0, cur: null });
+  if (!tts.chunks.length) { ttsStop(); return; }
+  if (!koVoices().length && speechSynthesis.getVoices().length) toast('이 기기에 한국어 음성이 없어 기본 목소리로 읽습니다');
+  speakNext();
+}
+function ttsPause() { tts.paused = true; tts.cur = null; speechSynthesis.cancel(); ttsUI(); }
+function ttsResume() { tts.paused = false; speakNext(); }
+function ttsStop(silent) {
+  if (!ttsOK) return;
+  const was = tts.on;
+  tts.on = false; tts.paused = false; tts.cur = null;
+  if (was || silent) try { speechSynthesis.cancel(); } catch (e) {}
+  if (window.CSS && CSS.highlights) CSS.highlights.delete('tts');
+  ttsUI();
+}
+const keepSel = e => e.preventDefault(); // 버튼을 눌러도 선택한 글자가 풀리지 않게
+['ttsBtn', 'ttsPlay', 'ttsStop'].forEach(id => $(id).addEventListener('pointerdown', keepSel));
+$('ttsBtn').onclick = () => {
+  if (tts.open) { tts.open = false; ttsStop(); return; }
+  tts.open = true; ttsUI(); ttsStart();
+};
+$('ttsPlay').onclick = () => { if (!tts.on) ttsStart(); else if (tts.paused) ttsResume(); else ttsPause(); };
+$('ttsStop').onclick = () => ttsStop();
+$('ttsClose').onclick = () => { tts.open = false; ttsStop(); };
+$('ttsRate').onchange = e => {
+  ttsRate = parseFloat(e.target.value) || 1;
+  try { localStorage.setItem('hangyeol.ttsRate', ttsRate); } catch (x) {}
+  if (tts.on && !tts.paused) { tts.cur = null; speechSynthesis.cancel(); speakNext(); } // 바뀐 속도로 지금 문장부터 다시
+};
+$('ttsVoice').onchange = e => {
+  ttsVoiceName = e.target.value;
+  try { localStorage.setItem('hangyeol.ttsVoice', ttsVoiceName); } catch (x) {}
+  if (tts.on && !tts.paused) { tts.cur = null; speechSynthesis.cancel(); speakNext(); }
+};
+window.addEventListener('pagehide', () => ttsStop(true));
 
 let savedRange = null; // 버튼을 누를 때 선택 영역이 사라지지 않게 기억
 document.addEventListener('selectionchange', () => {
