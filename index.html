@@ -329,7 +329,7 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
         <input type="file" id="importFile" accept="application/json,.json" class="hidden">
       </div>
       <div class="foot-links"><button class="link" id="layoutBtn"></button></div>
-      <div class="app-ver">영원노트 버전 29</div>
+      <div class="app-ver">영원노트 버전 30</div>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -385,6 +385,9 @@ dialog label.check input{width:18px;height:18px;accent-color:var(--accent)}
       <button class="fmt-btn" id="ttsStop">■ 정지</button>
       <label class="fmt-label">속도 <select id="ttsRate">
         <option value="0.7">아주 느리게</option><option value="0.85">느리게</option><option value="1" selected>보통</option><option value="1.2">빠르게</option><option value="1.5">아주 빠르게</option>
+      </select></label>
+      <label class="fmt-label">반복 <select id="ttsRepeat">
+        <option value="off">안 함</option><option value="all">전체 반복</option><option value="one">한 문장 반복</option>
       </select></label>
       <select id="ttsVoice" aria-label="목소리"></select>
       <span class="tts-info" id="ttsInfo"></span>
@@ -1323,8 +1326,10 @@ $('fmtBtn').onclick = () => { fmtOpen = !fmtOpen; $('fmtBar').classList.toggle('
    ================================================================ */
 const ttsOK = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const tts = { on: false, paused: false, chunks: [], idx: 0, text: '', cur: null, open: false };
-let ttsRate = 1, ttsVoiceName = '';
-try { ttsRate = parseFloat(localStorage.getItem('hangyeol.ttsRate')) || 1; ttsVoiceName = localStorage.getItem('hangyeol.ttsVoice') || ''; } catch (e) {}
+let ttsRate = 1, ttsVoiceName = '', ttsRepeat = 'off';
+try { ttsRate = parseFloat(localStorage.getItem('hangyeol.ttsRate')) || 1; ttsVoiceName = localStorage.getItem('hangyeol.ttsVoice') || ''; ttsRepeat = localStorage.getItem('hangyeol.ttsRepeat') || 'off'; } catch (e) {}
+let ttsGapTimer = null;
+function ttsLater(fn, ms) { clearTimeout(ttsGapTimer); ttsGapTimer = setTimeout(() => { ttsGapTimer = null; fn(); }, ms); }
 function koVoices() { return ttsOK ? speechSynthesis.getVoices().filter(v => /^ko/i.test(v.lang)) : []; }
 function fillVoices() {
   const vs = koVoices(), sel = $('ttsVoice');
@@ -1363,8 +1368,9 @@ function ttsUI() {
   $('ttsBar').classList.toggle('hidden', !tts.open);
   $('ttsBtn').classList.toggle('on', tts.open);
   $('ttsPlay').textContent = tts.on && !tts.paused ? '⏸ 멈춤' : (tts.on && tts.paused ? '▶ 계속' : '▶ 읽기');
-  $('ttsInfo').textContent = tts.on ? `${Math.min(tts.idx + 1, tts.chunks.length)} / ${tts.chunks.length} 문장` : '';
+  $('ttsInfo').textContent = tts.on ? `${Math.min(tts.idx + 1, tts.chunks.length)} / ${tts.chunks.length} 문장` + (ttsRepeat !== 'off' && tts.loop > 1 ? ` · ${tts.loop}번째` : '') : '';
   $('ttsRate').value = String(ttsRate);
+  $('ttsRepeat').value = ttsRepeat;
 }
 function markChunk(c) {
   if (!(window.CSS && CSS.highlights && window.Highlight)) return;
@@ -1376,13 +1382,20 @@ function markChunk(c) {
 }
 function speakNext() {
   if (!tts.on || tts.paused) return;
-  if (tts.idx >= tts.chunks.length) { ttsStop(); toast('다 읽었습니다'); return; }
+  if (tts.idx >= tts.chunks.length) {
+    if (ttsRepeat === 'all') { tts.idx = 0; tts.loop++; ttsUI(); ttsLater(speakNext, 1200); return; } // 처음부터 다시 (잠깐 쉬고)
+    ttsStop(); toast('다 읽었습니다'); return;
+  }
   const c = tts.chunks[tts.idx];
   const u = new SpeechSynthesisUtterance(tts.text.slice(c[0], c[1]));
   u.lang = 'ko-KR'; u.rate = ttsRate;
   const v = koVoices().find(x => x.name === ttsVoiceName) || koVoices()[0];
   if (v) u.voice = v;
-  u.onend = () => { if (u !== tts.cur) return; tts.idx++; speakNext(); };
+  u.onend = () => {
+    if (u !== tts.cur) return;
+    if (ttsRepeat === 'one') { tts.loop++; ttsUI(); ttsLater(speakNext, 900); return; } // 같은 문장 다시
+    tts.idx++; speakNext();
+  };
   u.onerror = e => { if (u !== tts.cur || e.error === 'interrupted' || e.error === 'canceled') return; tts.idx++; speakNext(); };
   tts.cur = u;
   markChunk(c); ttsUI();
@@ -1399,16 +1412,17 @@ function ttsStart() { // 버튼을 누른 순간(동기)에 바로 시작해야 
     else if (text.slice(a).trim()) from = a;
   }
   speechSynthesis.cancel();
-  Object.assign(tts, { on: true, paused: false, text, chunks: makeChunks(text, from, to), idx: 0, cur: null });
+  Object.assign(tts, { on: true, paused: false, text, chunks: makeChunks(text, from, to), idx: 0, cur: null, loop: 1 });
   if (!tts.chunks.length) { ttsStop(); return; }
   if (!koVoices().length && speechSynthesis.getVoices().length) toast('이 기기에 한국어 음성이 없어 기본 목소리로 읽습니다');
   speakNext();
 }
-function ttsPause() { tts.paused = true; tts.cur = null; speechSynthesis.cancel(); ttsUI(); }
+function ttsPause() { clearTimeout(ttsGapTimer); tts.paused = true; tts.cur = null; speechSynthesis.cancel(); ttsUI(); }
 function ttsResume() { tts.paused = false; speakNext(); }
 function ttsStop(silent) {
   if (!ttsOK) return;
   const was = tts.on;
+  clearTimeout(ttsGapTimer);
   tts.on = false; tts.paused = false; tts.cur = null;
   if (was || silent) try { speechSynthesis.cancel(); } catch (e) {}
   if (window.CSS && CSS.highlights) CSS.highlights.delete('tts');
@@ -1427,6 +1441,11 @@ $('ttsRate').onchange = e => {
   ttsRate = parseFloat(e.target.value) || 1;
   try { localStorage.setItem('hangyeol.ttsRate', ttsRate); } catch (x) {}
   if (tts.on && !tts.paused) { tts.cur = null; speechSynthesis.cancel(); speakNext(); } // 바뀐 속도로 지금 문장부터 다시
+};
+$('ttsRepeat').onchange = e => {
+  ttsRepeat = e.target.value; tts.loop = 1;
+  try { localStorage.setItem('hangyeol.ttsRepeat', ttsRepeat); } catch (x) {}
+  ttsUI();
 };
 $('ttsVoice').onchange = e => {
   ttsVoiceName = e.target.value;
